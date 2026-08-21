@@ -1,6 +1,8 @@
 package assessments
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -16,10 +18,16 @@ func resolveSlug(rt *runtime.Runtime, args []string) (string, error) {
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "assessments", Short: "Manage assessments and attached cases"}
 	var listQ []string
+	var listAll bool
 	list := &cobra.Command{Use: "list", Short: "List assessments", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsList(rt.Context(), cmdutil.QueryFromPairs(listQ)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+				return rt.API.AssessmentsList(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
 	cmd.AddCommand(list)
 
 	cmd.AddCommand(&cobra.Command{
@@ -137,6 +145,7 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd.AddCommand(cases)
 
 	var resQ []string
+	var resAll bool
 	res := &cobra.Command{
 		Use:   "results [slug]",
 		Args:  cobra.MaximumNArgs(1),
@@ -147,11 +156,14 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 				return err
 			}
 			return cmdutil.Run(rt, func() (any, error) {
-				return rt.API.AssessmentsResults(rt.Context(), slug, cmdutil.QueryFromPairs(resQ))
+				return cmdutil.ListOrAll(resAll, resQ, func(q url.Values) (any, error) {
+					return rt.API.AssessmentsResults(rt.Context(), slug, q)
+				})
 			})
 		},
 	}
 	cmdutil.FilterFlag(res, &resQ)
+	cmdutil.AllFlag(res, &resAll)
 	cmd.AddCommand(res)
 	parent.AddCommand(cmd)
 }

@@ -1,6 +1,8 @@
 package interviews
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -8,11 +10,17 @@ import (
 
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "interviews", Short: "Live interview rooms and templates"}
-	var listQ, aq, oq []string
+	var listQ []string
+	var listAll bool
 	list := &cobra.Command{Use: "list", Short: "List interview rooms", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.InterviewsList(rt.Context(), cmdutil.QueryFromPairs(listQ)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+				return rt.API.InterviewsList(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
 	cmd.AddCommand(list)
 
 	var cbody, cfile string
@@ -37,16 +45,23 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmdutil.BodyFlags(bulk, &bbody, &bfile)
 	cmd.AddCommand(bulk)
 
+	var aq, oq []string
 	analytics := &cobra.Command{Use: "analytics", Short: "Interview analytics", RunE: func(c *cobra.Command, args []string) error {
 		return cmdutil.Run(rt, func() (any, error) { return rt.API.InterviewsAnalytics(rt.Context(), cmdutil.QueryFromPairs(aq)) })
 	}}
 	cmdutil.FilterFlag(analytics, &aq)
 	cmd.AddCommand(analytics)
 
+	var oAll bool
 	orgCases := &cobra.Command{Use: "org-cases", Short: "Cases available for interviews", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.InterviewsOrgCases(rt.Context(), cmdutil.QueryFromPairs(oq)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(oAll, oq, func(q url.Values) (any, error) {
+				return rt.API.InterviewsOrgCases(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(orgCases, &oq)
+	cmdutil.AllFlag(orgCases, &oAll)
 	cmd.AddCommand(orgCases)
 
 	cmd.AddCommand(&cobra.Command{Use: "get [room-id]", Args: cobra.ExactArgs(1), Short: "Get interview room", RunE: func(c *cobra.Command, args []string) error {

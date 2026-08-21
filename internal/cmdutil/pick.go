@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
@@ -46,34 +47,81 @@ func fieldString(m map[string]any, keys ...string) string {
 	return ""
 }
 
-// ResolveOrPick returns args[0] or interactively picks from choices.
-func ResolveOrPick(rt *runtime.Runtime, args []string, title string, load func() ([]ui.Choice, error)) (string, error) {
-	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
-		return strings.TrimSpace(args[0]), nil
-	}
+// ChoiceFromRow builds a picker option from an API row.
+type ChoiceFromRow func(map[string]any) (ui.Choice, bool)
+
+// PickPaged walks list pages with a "Load more…" option until the user picks or cancels.
+func PickPaged(rt *runtime.Runtime, title string, emptyMsg string, fetch func(url.Values) (any, error), fromRow ChoiceFromRow) (string, error) {
 	if err := rt.EnsureAPI(); err != nil {
 		return "", err
 	}
-	choices, err := load()
-	if err != nil {
-		return "", err
+	q := url.Values{}
+	q.Set("page_size", "50")
+
+	var accumulated []ui.Choice
+	seen := map[string]struct{}{}
+
+	for page := 0; page < MaxListPages; page++ {
+		raw, err := fetch(q)
+		if err != nil {
+			return "", err
+		}
+		for _, m := range ResultsRows(raw) {
+			c, ok := fromRow(m)
+			if !ok || c.Value == "" {
+				continue
+			}
+			if _, dup := seen[c.Value]; dup {
+				continue
+			}
+			seen[c.Value] = struct{}{}
+			accumulated = append(accumulated, c)
+		}
+
+		nextQ := CloneQuery(q)
+		more := AdvanceQuery(nextQ, raw)
+
+		if len(accumulated) == 0 {
+			if more {
+				q = nextQ
+				continue
+			}
+			return "", &api.UsageError{Msg: emptyMsg}
+		}
+
+		choices := make([]ui.Choice, len(accumulated))
+		copy(choices, accumulated)
+		if more {
+			choices = append(choices, ui.Choice{
+				Label: fmt.Sprintf("↓ Load more… (%d so far)", len(accumulated)),
+				Value: loadMoreValue,
+			})
+		}
+
+		selected, err := ui.Select(rt.UI, title, choices)
+		if err != nil {
+			return "", err
+		}
+		if selected == loadMoreValue {
+			if !more {
+				return "", &api.UsageError{Msg: "no more pages"}
+			}
+			q = nextQ
+			continue
+		}
+		return selected, nil
 	}
-	return ui.Select(rt.UI, title, choices)
+	return "", &api.UsageError{Msg: fmt.Sprintf("stopped after %d pages", MaxListPages)}
 }
 
-// PickAssessmentSlug lists assessments and returns a slug.
+// PickAssessmentSlug lists assessments (with Load more) and returns a slug.
 func PickAssessmentSlug(rt *runtime.Runtime) (string, error) {
-	return ResolveOrPick(rt, nil, "Select assessment", func() ([]ui.Choice, error) {
-		raw, err := rt.API.AssessmentsList(rt.Context(), nil)
-		if err != nil {
-			return nil, err
-		}
-		rows := ResultsRows(raw)
-		choices := make([]ui.Choice, 0, len(rows))
-		for _, m := range rows {
+	return PickPaged(rt, "Select assessment", "no assessments found",
+		func(q url.Values) (any, error) { return rt.API.AssessmentsList(rt.Context(), q) },
+		func(m map[string]any) (ui.Choice, bool) {
 			slug := fieldString(m, "slug")
 			if slug == "" {
-				continue
+				return ui.Choice{}, false
 			}
 			title := fieldString(m, "title", "name")
 			status := fieldString(m, "status")
@@ -84,28 +132,19 @@ func PickAssessmentSlug(rt *runtime.Runtime) (string, error) {
 			if status != "" {
 				label = label + " [" + status + "]"
 			}
-			choices = append(choices, ui.Choice{Label: label, Value: slug})
-		}
-		if len(choices) == 0 {
-			return nil, &api.UsageError{Msg: "no assessments found"}
-		}
-		return choices, nil
-	})
+			return ui.Choice{Label: label, Value: slug}, true
+		},
+	)
 }
 
-// PickInviteToken lists invites and returns invite_token.
+// PickInviteToken lists invites (with Load more) and returns invite_token.
 func PickInviteToken(rt *runtime.Runtime) (string, error) {
-	return ResolveOrPick(rt, nil, "Select invitation", func() ([]ui.Choice, error) {
-		raw, err := rt.API.InvitesList(rt.Context(), nil)
-		if err != nil {
-			return nil, err
-		}
-		rows := ResultsRows(raw)
-		choices := make([]ui.Choice, 0, len(rows))
-		for _, m := range rows {
+	return PickPaged(rt, "Select invitation", "no invitations found",
+		func(q url.Values) (any, error) { return rt.API.InvitesList(rt.Context(), q) },
+		func(m map[string]any) (ui.Choice, bool) {
 			token := fieldString(m, "invite_token", "token", "id")
 			if token == "" {
-				continue
+				return ui.Choice{}, false
 			}
 			email := fieldString(m, "email")
 			status := fieldString(m, "status")
@@ -119,78 +158,50 @@ func PickInviteToken(rt *runtime.Runtime) (string, error) {
 			if status != "" {
 				label = label + " [" + status + "]"
 			}
-			choices = append(choices, ui.Choice{Label: label, Value: token})
-		}
-		if len(choices) == 0 {
-			return nil, &api.UsageError{Msg: "no invitations found"}
-		}
-		return choices, nil
-	})
+			return ui.Choice{Label: label, Value: token}, true
+		},
+	)
 }
 
-// PickPipelineSlug lists pipelines and returns a slug.
+// PickPipelineSlug lists pipelines (with Load more) and returns a slug.
 func PickPipelineSlug(rt *runtime.Runtime) (string, error) {
-	return ResolveOrPick(rt, nil, "Select pipeline", func() ([]ui.Choice, error) {
-		raw, err := rt.API.PipelinesList(rt.Context(), nil)
-		if err != nil {
-			return nil, err
-		}
-		rows := ResultsRows(raw)
-		choices := make([]ui.Choice, 0, len(rows))
-		for _, m := range rows {
+	return PickPaged(rt, "Select pipeline", "no pipelines found",
+		func(q url.Values) (any, error) { return rt.API.PipelinesList(rt.Context(), q) },
+		func(m map[string]any) (ui.Choice, bool) {
 			slug := fieldString(m, "slug")
 			if slug == "" {
-				continue
+				return ui.Choice{}, false
 			}
 			name := fieldString(m, "name", "title")
 			label := slug
 			if name != "" {
 				label = fmt.Sprintf("%s — %s", slug, name)
 			}
-			choices = append(choices, ui.Choice{Label: label, Value: slug})
-		}
-		if len(choices) == 0 {
-			return nil, &api.UsageError{Msg: "no pipelines found"}
-		}
-		return choices, nil
-	})
+			return ui.Choice{Label: label, Value: slug}, true
+		},
+	)
 }
 
-// PickWebhookID lists webhooks and returns an id.
+// PickWebhookID lists webhooks (with Load more) and returns an id.
 func PickWebhookID(rt *runtime.Runtime) (string, error) {
-	return ResolveOrPick(rt, nil, "Select webhook", func() ([]ui.Choice, error) {
-		raw, err := rt.API.WebhooksList(rt.Context())
-		if err != nil {
-			return nil, err
-		}
-		rows := ResultsRows(raw)
-		if len(rows) == 0 {
-			// Some APIs return a bare list under a different key or as array.
-			if arr, ok := raw.([]any); ok {
-				rows = anyMaps(arr)
-			}
-		}
-		choices := make([]ui.Choice, 0, len(rows))
-		for _, m := range rows {
+	return PickPaged(rt, "Select webhook", "no webhooks found",
+		func(q url.Values) (any, error) { return rt.API.WebhooksList(rt.Context(), q) },
+		func(m map[string]any) (ui.Choice, bool) {
 			id := fieldString(m, "id")
 			if id == "" {
-				continue
+				return ui.Choice{}, false
 			}
-			url := fieldString(m, "url", "endpoint_url")
+			urlStr := fieldString(m, "url", "endpoint_url")
 			label := id
 			if len(id) > 8 {
 				label = id[:8]
 			}
-			if url != "" {
-				label = label + " · " + url
+			if urlStr != "" {
+				label = label + " · " + urlStr
 			}
-			choices = append(choices, ui.Choice{Label: label, Value: id})
-		}
-		if len(choices) == 0 {
-			return nil, &api.UsageError{Msg: "no webhooks found"}
-		}
-		return choices, nil
-	})
+			return ui.Choice{Label: label, Value: id}, true
+		},
+	)
 }
 
 // ConfirmDestructive confirms unless --yes (arrow-key Yes/No when TTY).

@@ -1,6 +1,8 @@
 package invites
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/ui"
@@ -24,10 +26,16 @@ func resolveInvite(rt *runtime.Runtime, args []string) (string, error) {
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "invites", Short: "Create and manage candidate invitations"}
 	var listQ []string
+	var listAll bool
 	list := &cobra.Command{Use: "list", Short: "List invitations", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.InvitesList(rt.Context(), cmdutil.QueryFromPairs(listQ)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+				return rt.API.InvitesList(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
 	cmd.AddCommand(list)
 
 	var email, name string

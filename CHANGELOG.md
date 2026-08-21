@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- `--all` on list commands follows cursor/`page` pagination and merges `results` (default `page_size=100`).
+- Interactive pickers walk pages with **↓ Load more…** until you select or cancel.
+- Manual paging still works: `--filter cursor=…` / `--filter page_size=…`.
+
 ## 0.1.2
 
 ### Interactive mode

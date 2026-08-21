@@ -224,9 +224,9 @@ func (c *Client) PipelinesUnhold(ctx context.Context, id string, body any) (any,
 
 // --- Webhooks ---
 
-func (c *Client) WebhooksList(ctx context.Context) (any, error) {
+func (c *Client) WebhooksList(ctx context.Context, q url.Values) (any, error) {
 	var out any
-	return out, c.GetJSON(ctx, "/webhooks/", nil, &out)
+	return out, c.GetJSON(ctx, "/webhooks/", q, &out)
 }
 
 func (c *Client) WebhooksCreate(ctx context.Context, body any) (any, error) {

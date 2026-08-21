@@ -88,6 +88,24 @@ praxicraft-assess webhooks test            # pick webhook
 
 Use `--non-interactive` (and pass args/flags) in CI. Use `--yes` to skip confirms.
 
+## Pagination
+
+List endpoints return one page by default (`page_size` 20 on the API).
+
+```bash
+# One page
+praxicraft-assess assessments list
+
+# Every page (follows next until null; uses page_size=100)
+praxicraft-assess assessments list --all
+
+# Manual page
+praxicraft-assess assessments list --filter page_size=50
+praxicraft-assess assessments list --filter cursor=cD0yMDI1 --filter page_size=50
+```
+
+Interactive pickers (omit ID) show the first page, then **↓ Load more…** to walk cursors until you pick or cancel.
+
 ## Common commands
 
 ```bash
@@ -148,6 +166,7 @@ Run `praxicraft-assess <command> --help` for flags on any command.
 | `--output` | `json` (default for scripts), `table`, or `yaml` |
 | `--query` | JMESPath filter on JSON output |
 | `--filter` | API list filter as `key=value` (repeatable; on list commands) |
+| `--all` | On list commands: fetch every page (follow `next`) |
 | `--yes` | Skip confirmation prompts |
 | `--non-interactive` | Disable interactive prompts (CI-friendly) |
 

@@ -1,6 +1,8 @@
 package webhooks
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -15,9 +17,18 @@ func resolveID(rt *runtime.Runtime, args []string) (string, error) {
 
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "webhooks", Short: "Webhook endpoints and deliveries"}
-	cmd.AddCommand(&cobra.Command{Use: "list", Short: "List webhook endpoints", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksList(rt.Context()) })
-	}})
+	var listQ []string
+	var listAll bool
+	list := &cobra.Command{Use: "list", Short: "List webhook endpoints", RunE: func(c *cobra.Command, args []string) error {
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+				return rt.API.WebhooksList(rt.Context(), q)
+			})
+		})
+	}}
+	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
+	cmd.AddCommand(list)
 
 	var body, file string
 	create := &cobra.Command{Use: "create", Short: "Create webhook endpoint", RunE: func(c *cobra.Command, args []string) error {
@@ -92,6 +103,7 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	})
 
 	var dq []string
+	var dAll bool
 	deliv := &cobra.Command{
 		Use:   "deliveries [id]",
 		Args:  cobra.MaximumNArgs(1),
@@ -102,11 +114,14 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 				return err
 			}
 			return cmdutil.Run(rt, func() (any, error) {
-				return rt.API.WebhooksDeliveries(rt.Context(), id, cmdutil.QueryFromPairs(dq))
+				return cmdutil.ListOrAll(dAll, dq, func(q url.Values) (any, error) {
+					return rt.API.WebhooksDeliveries(rt.Context(), id, q)
+				})
 			})
 		},
 	}
 	cmdutil.FilterFlag(deliv, &dq)
+	cmdutil.AllFlag(deliv, &dAll)
 	cmd.AddCommand(deliv)
 
 	cmd.AddCommand(&cobra.Command{Use: "retry-delivery [webhook-id] [delivery-id]", Args: cobra.ExactArgs(2), Short: "Retry a failed delivery", RunE: func(c *cobra.Command, args []string) error {

@@ -21,11 +21,12 @@ func canUseTUI(opts Options) bool {
 }
 
 // Select shows an arrow-key menu. Falls back to numbered list when not a TTY.
+// A single real choice is returned immediately unless it is a sentinel (e.g. load more).
 func Select(opts Options, title string, choices []Choice) (string, error) {
 	if len(choices) == 0 {
 		return "", &api.UsageError{Msg: "nothing to select"}
 	}
-	if len(choices) == 1 {
+	if len(choices) == 1 && !strings.HasPrefix(choices[0].Value, "__praxicraft_") {
 		return choices[0].Value, nil
 	}
 	if !opts.Interactive {

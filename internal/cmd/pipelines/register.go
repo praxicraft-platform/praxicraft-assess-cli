@@ -1,6 +1,8 @@
 package pipelines
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -16,10 +18,16 @@ func resolveSlug(rt *runtime.Runtime, args []string) (string, error) {
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "pipelines", Short: "Hiring pipelines and enrollments"}
 	var listQ []string
+	var listAll bool
 	list := &cobra.Command{Use: "list", Short: "List pipelines", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesList(rt.Context(), cmdutil.QueryFromPairs(listQ)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+				return rt.API.PipelinesList(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
 	cmd.AddCommand(list)
 
 	cmd.AddCommand(&cobra.Command{
@@ -76,6 +84,7 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd.AddCommand(bulk)
 
 	var eq []string
+	var eAll bool
 	enrollments := &cobra.Command{
 		Use:   "enrollments [slug]",
 		Args:  cobra.MaximumNArgs(1),
@@ -86,11 +95,14 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 				return err
 			}
 			return cmdutil.Run(rt, func() (any, error) {
-				return rt.API.PipelinesEnrollments(rt.Context(), slug, cmdutil.QueryFromPairs(eq))
+				return cmdutil.ListOrAll(eAll, eq, func(q url.Values) (any, error) {
+					return rt.API.PipelinesEnrollments(rt.Context(), slug, q)
+				})
 			})
 		},
 	}
 	cmdutil.FilterFlag(enrollments, &eq)
+	cmdutil.AllFlag(enrollments, &eAll)
 	cmd.AddCommand(enrollments)
 
 	cmd.AddCommand(&cobra.Command{Use: "get-enrollment [id]", Args: cobra.ExactArgs(1), Short: "Get enrollment by id", RunE: func(c *cobra.Command, args []string) error {

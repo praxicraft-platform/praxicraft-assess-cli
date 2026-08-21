@@ -24,7 +24,7 @@ import (
 )
 
 // Version is injected via ldflags.
-var Version = "0.1.2"
+var Version = "0.1.3"
 
 // Execute runs the root command and returns a process exit code.
 func Execute() int {

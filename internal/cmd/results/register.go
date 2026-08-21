@@ -1,6 +1,8 @@
 package results
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -9,6 +11,7 @@ import (
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "results", Short: "Assessment and invite results"}
 	var listQ []string
+	var listAll bool
 	list := &cobra.Command{
 		Use:   "list [assessment-slug]",
 		Args:  cobra.MaximumNArgs(1),
@@ -26,11 +29,14 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 				}
 			}
 			return cmdutil.Run(rt, func() (any, error) {
-				return rt.API.ResultsList(rt.Context(), slug, cmdutil.QueryFromPairs(listQ))
+				return cmdutil.ListOrAll(listAll, listQ, func(q url.Values) (any, error) {
+					return rt.API.ResultsList(rt.Context(), slug, q)
+				})
 			})
 		},
 	}
 	cmdutil.FilterFlag(list, &listQ)
+	cmdutil.AllFlag(list, &listAll)
 	cmd.AddCommand(list)
 	cmd.AddCommand(&cobra.Command{
 		Use:   "get [invite-token]",

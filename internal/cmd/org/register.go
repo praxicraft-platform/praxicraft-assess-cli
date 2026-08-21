@@ -1,6 +1,8 @@
 package org
 
 import (
+	"net/url"
+
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmdutil"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/spf13/cobra"
@@ -20,10 +22,16 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 		}},
 	)
 	var auditQ []string
+	var auditAll bool
 	audit := &cobra.Command{Use: "audit-log", Short: "Organisation audit log", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.OrgAuditLog(rt.Context(), cmdutil.QueryFromPairs(auditQ)) })
+		return cmdutil.Run(rt, func() (any, error) {
+			return cmdutil.ListOrAll(auditAll, auditQ, func(q url.Values) (any, error) {
+				return rt.API.OrgAuditLog(rt.Context(), q)
+			})
+		})
 	}}
 	cmdutil.FilterFlag(audit, &auditQ)
+	cmdutil.AllFlag(audit, &auditAll)
 	cmd.AddCommand(audit)
 
 	squads := &cobra.Command{Use: "squads", Short: "Squads"}
