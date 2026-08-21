@@ -1,22 +1,24 @@
 # Praxicraft Assess CLI
 
-Official command-line interface for the **[Praxicraft Assess](https://assess.praxicraft.com)** Public API.
+Official command-line tool for the [Praxicraft Assess](https://assess.praxicraft.com) Public API.
 
-Binary name: **`praxicraft-assess`**
+Invite candidates, manage assessments and pipelines, work with webhooks and interviews, and automate hiring workflows from your terminal.
 
 ```bash
-# Scripted (AWS-style)
 praxicraft-assess org get
 praxicraft-assess assessments list --output table
 praxicraft-assess invites create senior-backend-screen --email candidate@example.com
-
-# Interactive shell (branded prompt — not a MotD tips feed)
-praxicraft-assess
 ```
 
-**Requires** an organisation API key (`ct_live_…` or `ct_test_…`). Docs: [docs.praxicraft.com](https://docs.praxicraft.com)
+Run `praxicraft-assess` with no arguments to open an interactive shell.
+
+You need an organisation API key (`ct_live_…` or `ct_test_…`) from **Assess → Developer → API Keys**. Full API docs: [docs.praxicraft.com](https://docs.praxicraft.com).
 
 ## Install
+
+### From GitHub Releases
+
+Download a binary for your OS from [Releases](https://github.com/praxicraft-platform/praxicraft-assess-cli/releases), make it executable, and put it on your `PATH`.
 
 ### From source
 
@@ -26,46 +28,93 @@ cd praxicraft-assess-cli
 go install ./cmd/praxicraft-assess
 ```
 
-### GitHub Releases
-
-Download the binary for your OS from [Releases](https://github.com/praxicraft-platform/praxicraft-assess-cli/releases).
+Requires Go 1.22+.
 
 ## Configure
 
 ```bash
 praxicraft-assess configure
-# or non-interactive:
-praxicraft-assess configure --name default --api-key ct_test_… --base-url https://assess.praxicraft.com
 ```
 
-Config file: `~/.config/praxicraft/config.toml`  
-Env: `PRAXICRAFT_API_KEY`, `PRAXICRAFT_API_BASE_URL`, `PRAXICRAFT_PROFILE`
+Or set credentials without the wizard:
 
-## Command groups
+```bash
+export PRAXICRAFT_API_KEY="ct_test_xxxxxxxxxxxxxxxx"
+# optional
+export PRAXICRAFT_API_BASE_URL="https://assess.praxicraft.com"
+```
 
-| Group | Examples |
-|-------|----------|
-| `org` | `get`, `stats`, `team`, `audit-log`, `squads` |
-| `assessments` | `list`, `get`, `create`, `update`, `duplicate`, `cases`, `results` |
-| `invites` | `list`, `create`, `bulk-create`, `remind`, `cancel`, `result` |
-| `results` | `list`, `get` |
-| `cases` | `platform-list`, `list`, `create`, `get`, `update`, `delete` |
-| `pipelines` | `list`, `get`, `enroll`, `bulk-enroll`, `enrollments`, `reject`, `hold`, `unhold` |
-| `webhooks` | `list`, `create`, `get`, `update`, `delete`, `test`, `deliveries`, `retry-delivery` |
-| `interviews` | `list`, `create`, `bulk-create`, `get`, `cancel`, `reschedule`, `analysis`, `replay`, `share`, `templates` |
-| `integrations` | `list`, `connect-url`, `test` |
+Profiles are stored in `~/.config/praxicraft/config.toml`. Use `--profile` to switch between them.
 
-Global flags: `--profile`, `--api-key`, `--base-url`, `--output json|table|yaml`, `--query` (JMESPath), `--yes`, `--non-interactive`, `--no-banner`
+Check that you’re authenticated:
 
-JSON bodies for create/update: `--body '{"title":"…"}'` or `--body-file path.json`
+```bash
+praxicraft-assess whoami
+```
 
-## Branding
+## Common commands
 
-On a TTY, the CLI shows a **Praxicraft Assess** banner (name, version, docs link) and a branded `praxicraft-assess>` REPL prompt. This is product identity — **not** a MotD tips feed. Disable with `--no-banner` or when stdout is not a TTY.
+```bash
+# Organisation
+praxicraft-assess org get
+praxicraft-assess org stats
+
+# Assessments
+praxicraft-assess assessments list
+praxicraft-assess assessments get senior-backend-screen
+
+# Invites
+praxicraft-assess invites create senior-backend-screen --email candidate@example.com --name "Jane Doe"
+praxicraft-assess invites list
+praxicraft-assess invites result <invite-token>
+
+# Results
+praxicraft-assess results list senior-backend-screen
+praxicraft-assess results get <invite-token>
+
+# Webhooks
+praxicraft-assess webhooks list
+praxicraft-assess webhooks create --body '{"url":"https://example.com/hooks","events":["candidate.passed"]}'
+```
+
+Create and update payloads can be passed as JSON:
+
+```bash
+praxicraft-assess assessments create --body '{"title":"Backend screen"}'
+praxicraft-assess assessments create --body-file ./assessment.json
+```
+
+## What you can manage
+
+| Command group | Purpose |
+|---------------|---------|
+| `org` | Profile, stats, team, audit log, squads |
+| `assessments` | List, create, update, duplicate, cases, results |
+| `invites` | Create, bulk create, list, remind, cancel, result |
+| `results` | List by assessment, get by invite token |
+| `cases` | Platform and organisation cases |
+| `pipelines` | Enroll, bulk enroll, hold, reject, enrollments |
+| `webhooks` | Endpoints, test pings, deliveries, retries |
+| `interviews` | Rooms, templates, analysis, share, cancel |
+| `integrations` | Connected ATS providers |
+
+Run `praxicraft-assess <command> --help` for flags on any command.
+
+## Useful flags
+
+| Flag | Description |
+|------|-------------|
+| `--api-key` | API key (overrides env / config) |
+| `--base-url` | API host (default `https://assess.praxicraft.com`) |
+| `--profile` | Named config profile |
+| `--output` | `json` (default for scripts), `table`, or `yaml` |
+| `--query` | JMESPath filter on JSON output |
+| `--yes` | Skip confirmation prompts |
+| `--non-interactive` | Disable interactive prompts (CI-friendly) |
 
 ## Examples
 
-See [praxicraft-assess-examples](https://github.com/praxicraft-platform/praxicraft-assess-examples).
+More recipes (SDKs, curl, n8n, Zapier) live in [praxicraft-assess-examples](https://github.com/praxicraft-platform/praxicraft-assess-examples).
 
 ## License
 
