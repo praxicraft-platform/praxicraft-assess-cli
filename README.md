@@ -10,8 +10,6 @@ praxicraft-assess assessments list --output table
 praxicraft-assess invites create senior-backend-screen --email candidate@example.com
 ```
 
-Run `praxicraft-assess` with no arguments to open an interactive shell.
-
 You need an organisation API key (`ct_live_…` or `ct_test_…`) from **Assess → Developer → API Keys**. Full API docs: [docs.praxicraft.com](https://docs.praxicraft.com).
 
 ## Install
@@ -52,6 +50,44 @@ Check that you’re authenticated:
 praxicraft-assess whoami
 ```
 
+## Interactive mode
+
+Run with no arguments (in a terminal), or use `interactive`:
+
+```bash
+praxicraft-assess
+# or
+praxicraft-assess interactive
+```
+
+You get an arrow-key menu (↑/↓, Enter) of resource commands. After the first action, press Enter again (or type `menu`) to reopen the picker. You can also type any command normally (e.g. `assessments list`).
+
+**Menu covers resources such as:**
+
+| Pick… | Runs |
+|-------|------|
+| assessments list | `assessments list` |
+| assessments get | lists assessments → pick one → `get` |
+| assessments results / cases list | pick assessment → list |
+| invites list / create / result / remind / cancel | list or pick assessment/invite |
+| results list / get | pick assessment or invite |
+| cases list / platform-list | org or platform catalog |
+| pipelines list / get / enrollments | list or pick pipeline |
+| webhooks list / get / deliveries / test | list or pick webhook |
+| org get / stats / team, whoami, interviews, integrations | read commands |
+| configure | runner-style setup |
+
+Outside the shell, the same pickers work when you omit IDs:
+
+```bash
+praxicraft-assess assessments get          # ↑/↓ pick assessment
+praxicraft-assess invites create           # pick assessment, then email/name form
+praxicraft-assess invites cancel           # pick invite, then Yes/No
+praxicraft-assess webhooks test            # pick webhook
+```
+
+Use `--non-interactive` (and pass args/flags) in CI. Use `--yes` to skip confirms.
+
 ## Common commands
 
 ```bash
@@ -62,9 +98,11 @@ praxicraft-assess org stats
 # Assessments
 praxicraft-assess assessments list
 praxicraft-assess assessments get senior-backend-screen
+praxicraft-assess assessments get   # interactive pick
 
 # Invites
 praxicraft-assess invites create senior-backend-screen --email candidate@example.com --name "Jane Doe"
+praxicraft-assess invites create    # interactive pick + form
 praxicraft-assess invites list
 praxicraft-assess invites result <invite-token>
 

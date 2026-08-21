@@ -6,6 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func resolveSlug(rt *runtime.Runtime, args []string) (string, error) {
+	if len(args) > 0 && args[0] != "" {
+		return args[0], nil
+	}
+	return cmdutil.PickPipelineSlug(rt)
+}
+
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "pipelines", Short: "Hiring pipelines and enrollments"}
 	var listQ []string
@@ -15,36 +22,74 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmdutil.FilterFlag(list, &listQ)
 	cmd.AddCommand(list)
 
-	cmd.AddCommand(&cobra.Command{Use: "get [slug]", Args: cobra.ExactArgs(1), Short: "Get pipeline by slug", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesGet(rt.Context(), args[0]) })
-	}})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "get [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Get pipeline by slug (pick interactively if omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesGet(rt.Context(), slug) })
+		},
+	})
 
 	var ebody, efile string
-	enroll := &cobra.Command{Use: "enroll [slug]", Args: cobra.ExactArgs(1), Short: "Enroll a candidate", RunE: func(c *cobra.Command, args []string) error {
-		b, err := cmdutil.ReadBody(ebody, efile)
-		if err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesEnroll(rt.Context(), args[0], b) })
-	}}
+	enroll := &cobra.Command{
+		Use:   "enroll [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Enroll a candidate",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			b, err := cmdutil.ReadBody(ebody, efile)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesEnroll(rt.Context(), slug, b) })
+		},
+	}
 	cmdutil.BodyFlags(enroll, &ebody, &efile)
 	cmd.AddCommand(enroll)
 
 	var bbody, bfile string
-	bulk := &cobra.Command{Use: "bulk-enroll [slug]", Args: cobra.ExactArgs(1), Short: "Bulk enroll candidates", RunE: func(c *cobra.Command, args []string) error {
-		b, err := cmdutil.ReadBody(bbody, bfile)
-		if err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesBulkEnroll(rt.Context(), args[0], b) })
-	}}
+	bulk := &cobra.Command{
+		Use:   "bulk-enroll [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Bulk enroll candidates",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			b, err := cmdutil.ReadBody(bbody, bfile)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesBulkEnroll(rt.Context(), slug, b) })
+		},
+	}
 	cmdutil.BodyFlags(bulk, &bbody, &bfile)
 	cmd.AddCommand(bulk)
 
 	var eq []string
-	enrollments := &cobra.Command{Use: "enrollments [slug]", Args: cobra.ExactArgs(1), Short: "List enrollments", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.PipelinesEnrollments(rt.Context(), args[0], cmdutil.QueryFromPairs(eq)) })
-	}}
+	enrollments := &cobra.Command{
+		Use:   "enrollments [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "List enrollments",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) {
+				return rt.API.PipelinesEnrollments(rt.Context(), slug, cmdutil.QueryFromPairs(eq))
+			})
+		},
+	}
 	cmdutil.FilterFlag(enrollments, &eq)
 	cmd.AddCommand(enrollments)
 

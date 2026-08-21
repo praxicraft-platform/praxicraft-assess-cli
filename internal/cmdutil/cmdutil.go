@@ -9,7 +9,6 @@ import (
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
-	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -68,18 +67,6 @@ func QueryFromPairs(pairs []string) url.Values {
 		q.Add(k, v)
 	}
 	return q
-}
-
-// ConfirmDestructive confirms unless --yes.
-func ConfirmDestructive(rt *runtime.Runtime, msg string) error {
-	ok, err := ui.Confirm(rt.UI, msg)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return &api.AbortError{}
-	}
-	return nil
 }
 
 // ExitError wraps API errors for main.

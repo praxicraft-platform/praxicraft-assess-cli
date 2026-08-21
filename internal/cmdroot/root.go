@@ -1,6 +1,7 @@
 package cmdroot
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,7 +24,7 @@ import (
 )
 
 // Version is injected via ldflags.
-var Version = "0.1.1"
+var Version = "0.1.2"
 
 // Execute runs the root command and returns a process exit code.
 func Execute() int {
@@ -63,12 +64,14 @@ Docs:      ` + brand.DocsURL + `
 CLI guide: ` + brand.CLIDocsURL + `
 API keys:  ` + brand.APIKeysURL + `
 
-Run with no arguments in a terminal to open an interactive shell.
+Run with no arguments in a terminal to open interactive mode (arrow-key resource menu).
 Use --help on any command for flags and examples.`,
-		Example: `  praxicraft-assess configure
+		Example: `  praxicraft-assess
+  praxicraft-assess configure
   praxicraft-assess whoami
   praxicraft-assess assessments list
-  praxicraft-assess invites create my-assessment --email candidate@example.com
+  praxicraft-assess assessments get
+  praxicraft-assess invites create
   praxicraft-assess --query 'results[0].email' invites list
   praxicraft-assess assessments list --filter status=active --output table`,
 		SilenceUsage:  true,
@@ -142,7 +145,14 @@ Use --help on any command for flags and examples.`,
 }
 
 func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
-	fmt.Fprintln(os.Stderr, "Type commands (e.g. org get). help, exit / quit to leave.")
+	fmt.Fprintln(os.Stderr, "Interactive mode — ↑/↓ select a resource command, Enter to run. Type any command, or menu / exit.")
+	// Open the picker immediately so the first action is choosing a resource.
+	if picked, err := pickREPLCommand(rt); err == nil {
+		if code := runREPLLine(root, rt, picked); code >= 0 {
+			return code
+		}
+	}
+
 	for {
 		line, err := ui.ReadLine(brand.PromptPrefix())
 		if err != nil {
@@ -154,29 +164,84 @@ func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
 			return api.ExitUsage
 		}
 		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if line == "" || line == "menu" {
+			picked, perr := pickREPLCommand(rt)
+			if perr != nil {
+				var abort *api.AbortError
+				if errors.As(perr, &abort) {
+					continue
+				}
+				fmt.Fprintln(os.Stderr, perr.Error())
+				continue
+			}
+			line = picked
 		}
-		if line == "exit" || line == "quit" {
-			return 0
+		if code := runREPLLine(root, rt, line); code >= 0 {
+			return code
 		}
-		if line == "help" || line == "--help" || line == "-h" {
-			_ = root.Help()
-			continue
-		}
-		args := splitArgs(line)
-		if len(args) > 0 && args[0] == "interactive" {
-			fmt.Fprintln(os.Stderr, "already in interactive mode")
-			continue
-		}
-		root.SetArgs(args)
-		if err := root.Execute(); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-		}
-		// Reset local flag values so the next REPL line starts clean.
-		_ = root.Flags().Parse([]string{})
-		root.SetArgs(nil)
 	}
+}
+
+// runREPLLine executes one shell line. Returns >=0 to exit the process with that code; -1 to continue.
+func runREPLLine(root *cobra.Command, rt *runtime.Runtime, line string) int {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return -1
+	}
+	if line == "exit" || line == "quit" {
+		return 0
+	}
+	if line == "help" || line == "--help" || line == "-h" {
+		_ = root.Help()
+		return -1
+	}
+	args := splitArgs(line)
+	if len(args) > 0 && args[0] == "interactive" {
+		fmt.Fprintln(os.Stderr, "already in interactive mode")
+		return -1
+	}
+	root.SetArgs(args)
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+	}
+	_ = root.Flags().Parse([]string{})
+	root.SetArgs(nil)
+	return -1
+}
+
+func pickREPLCommand(rt *runtime.Runtime) (string, error) {
+	choices := []ui.Choice{
+		{Label: "whoami — current organisation", Value: "whoami"},
+		{Label: "org get — organisation profile", Value: "org get"},
+		{Label: "org stats — organisation stats", Value: "org stats"},
+		{Label: "org team — team members", Value: "org team"},
+		{Label: "assessments list", Value: "assessments list"},
+		{Label: "assessments get — pick assessment", Value: "assessments get"},
+		{Label: "assessments results — pick assessment", Value: "assessments results"},
+		{Label: "assessments cases list — pick assessment", Value: "assessments cases list"},
+		{Label: "invites list", Value: "invites list"},
+		{Label: "invites create — pick assessment + form", Value: "invites create"},
+		{Label: "invites result — pick invite", Value: "invites result"},
+		{Label: "invites remind — pick invite", Value: "invites remind"},
+		{Label: "invites cancel — pick invite", Value: "invites cancel"},
+		{Label: "results list — pick assessment", Value: "results list"},
+		{Label: "results get — pick invite", Value: "results get"},
+		{Label: "cases list — organisation cases", Value: "cases list"},
+		{Label: "cases platform-list — platform catalog", Value: "cases platform-list"},
+		{Label: "pipelines list", Value: "pipelines list"},
+		{Label: "pipelines get — pick pipeline", Value: "pipelines get"},
+		{Label: "pipelines enrollments — pick pipeline", Value: "pipelines enrollments"},
+		{Label: "webhooks list", Value: "webhooks list"},
+		{Label: "webhooks get — pick webhook", Value: "webhooks get"},
+		{Label: "webhooks deliveries — pick webhook", Value: "webhooks deliveries"},
+		{Label: "webhooks test — pick webhook", Value: "webhooks test"},
+		{Label: "interviews list", Value: "interviews list"},
+		{Label: "integrations list", Value: "integrations list"},
+		{Label: "configure — API key & profile", Value: "configure"},
+		{Label: "help", Value: "help"},
+		{Label: "exit", Value: "exit"},
+	}
+	return ui.Select(rt.UI, "What do you want to do?", choices)
 }
 
 func splitArgs(line string) []string {

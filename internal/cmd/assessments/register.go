@@ -6,6 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func resolveSlug(rt *runtime.Runtime, args []string) (string, error) {
+	if len(args) > 0 && args[0] != "" {
+		return args[0], nil
+	}
+	return cmdutil.PickAssessmentSlug(rt)
+}
+
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "assessments", Short: "Manage assessments and attached cases"}
 	var listQ []string
@@ -15,9 +22,18 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmdutil.FilterFlag(list, &listQ)
 	cmd.AddCommand(list)
 
-	cmd.AddCommand(&cobra.Command{Use: "get [slug]", Args: cobra.ExactArgs(1), Short: "Get assessment by slug", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsGet(rt.Context(), args[0]) })
-	}})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "get [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Get assessment by slug (pick interactively if omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsGet(rt.Context(), slug) })
+		},
+	})
 
 	var createBody, createFile string
 	create := &cobra.Command{Use: "create", Short: "Create assessment", RunE: func(c *cobra.Command, args []string) error {
@@ -31,31 +47,58 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd.AddCommand(create)
 
 	var updateBody, updateFile string
-	update := &cobra.Command{Use: "update [slug]", Args: cobra.ExactArgs(1), Short: "Update assessment", RunE: func(c *cobra.Command, args []string) error {
-		body, err := cmdutil.ReadBody(updateBody, updateFile)
-		if err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsUpdate(rt.Context(), args[0], body) })
-	}}
+	update := &cobra.Command{
+		Use:   "update [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Update assessment (pick interactively if slug omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			body, err := cmdutil.ReadBody(updateBody, updateFile)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsUpdate(rt.Context(), slug, body) })
+		},
+	}
 	cmdutil.BodyFlags(update, &updateBody, &updateFile)
 	cmd.AddCommand(update)
 
 	var dupBody, dupFile string
-	dup := &cobra.Command{Use: "duplicate [slug]", Args: cobra.ExactArgs(1), Short: "Duplicate assessment", RunE: func(c *cobra.Command, args []string) error {
-		body, err := cmdutil.ReadBody(dupBody, dupFile)
-		if err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsDuplicate(rt.Context(), args[0], body) })
-	}}
+	dup := &cobra.Command{
+		Use:   "duplicate [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Duplicate assessment (pick interactively if slug omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			body, err := cmdutil.ReadBody(dupBody, dupFile)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsDuplicate(rt.Context(), slug, body) })
+		},
+	}
 	cmdutil.BodyFlags(dup, &dupBody, &dupFile)
 	cmd.AddCommand(dup)
 
 	cases := &cobra.Command{Use: "cases", Short: "Assessment cases"}
-	cases.AddCommand(&cobra.Command{Use: "list [slug]", Args: cobra.ExactArgs(1), Short: "List cases on an assessment", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsCasesList(rt.Context(), args[0]) })
-	}})
+	cases.AddCommand(&cobra.Command{
+		Use:   "list [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "List cases on an assessment",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsCasesList(rt.Context(), slug) })
+		},
+	})
 	for _, op := range []struct{ use, method, short string }{
 		{"attach [slug]", "attach", "Attach cases to an assessment"},
 		{"replace [slug]", "replace", "Replace all cases on an assessment"},
@@ -63,7 +106,11 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	} {
 		op := op
 		var body, file string
-		cc := &cobra.Command{Use: op.use, Args: cobra.ExactArgs(1), Short: op.short, RunE: func(c *cobra.Command, args []string) error {
+		cc := &cobra.Command{Use: op.use, Args: cobra.MaximumNArgs(1), Short: op.short, RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
 			if op.method == "remove" || op.method == "replace" {
 				if err := cmdutil.ConfirmDestructive(rt, op.method+" cases on this assessment?"); err != nil {
 					return err
@@ -76,11 +123,11 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 			return cmdutil.Run(rt, func() (any, error) {
 				switch op.method {
 				case "attach":
-					return rt.API.AssessmentsCasesAttach(rt.Context(), args[0], b)
+					return rt.API.AssessmentsCasesAttach(rt.Context(), slug, b)
 				case "replace":
-					return rt.API.AssessmentsCasesReplace(rt.Context(), args[0], b)
+					return rt.API.AssessmentsCasesReplace(rt.Context(), slug, b)
 				default:
-					return rt.API.AssessmentsCasesRemove(rt.Context(), args[0], b)
+					return rt.API.AssessmentsCasesRemove(rt.Context(), slug, b)
 				}
 			})
 		}}
@@ -90,9 +137,20 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd.AddCommand(cases)
 
 	var resQ []string
-	res := &cobra.Command{Use: "results [slug]", Args: cobra.ExactArgs(1), Short: "List assessment results", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.AssessmentsResults(rt.Context(), args[0], cmdutil.QueryFromPairs(resQ)) })
-	}}
+	res := &cobra.Command{
+		Use:   "results [slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "List assessment results",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug, err := resolveSlug(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) {
+				return rt.API.AssessmentsResults(rt.Context(), slug, cmdutil.QueryFromPairs(resQ))
+			})
+		},
+	}
 	cmdutil.FilterFlag(res, &resQ)
 	cmd.AddCommand(res)
 	parent.AddCommand(cmd)

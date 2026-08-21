@@ -9,13 +9,47 @@ import (
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "results", Short: "Assessment and invite results"}
 	var listQ []string
-	list := &cobra.Command{Use: "list [assessment-slug]", Args: cobra.ExactArgs(1), Short: "List results for an assessment", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.ResultsList(rt.Context(), args[0], cmdutil.QueryFromPairs(listQ)) })
-	}}
+	list := &cobra.Command{
+		Use:   "list [assessment-slug]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "List results for an assessment (pick interactively if omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			slug := ""
+			if len(args) > 0 {
+				slug = args[0]
+			}
+			if slug == "" {
+				var err error
+				slug, err = cmdutil.PickAssessmentSlug(rt)
+				if err != nil {
+					return err
+				}
+			}
+			return cmdutil.Run(rt, func() (any, error) {
+				return rt.API.ResultsList(rt.Context(), slug, cmdutil.QueryFromPairs(listQ))
+			})
+		},
+	}
 	cmdutil.FilterFlag(list, &listQ)
 	cmd.AddCommand(list)
-	cmd.AddCommand(&cobra.Command{Use: "get [invite-token]", Args: cobra.ExactArgs(1), Short: "Get result by invite token", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.ResultsGet(rt.Context(), args[0]) })
-	}})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "get [invite-token]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Get result by invite token (pick interactively if omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			token := ""
+			if len(args) > 0 {
+				token = args[0]
+			}
+			if token == "" {
+				var err error
+				token, err = cmdutil.PickInviteToken(rt)
+				if err != nil {
+					return err
+				}
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.ResultsGet(rt.Context(), token) })
+		},
+	})
 	parent.AddCommand(cmd)
 }

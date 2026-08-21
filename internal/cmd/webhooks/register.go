@@ -6,6 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func resolveID(rt *runtime.Runtime, args []string) (string, error) {
+	if len(args) > 0 && args[0] != "" {
+		return args[0], nil
+	}
+	return cmdutil.PickWebhookID(rt)
+}
+
 func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{Use: "webhooks", Short: "Webhook endpoints and deliveries"}
 	cmd.AddCommand(&cobra.Command{Use: "list", Short: "List webhook endpoints", RunE: func(c *cobra.Command, args []string) error {
@@ -23,35 +30,82 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmdutil.BodyFlags(create, &body, &file)
 	cmd.AddCommand(create)
 
-	cmd.AddCommand(&cobra.Command{Use: "get [id]", Args: cobra.ExactArgs(1), Short: "Get webhook endpoint", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksGet(rt.Context(), args[0]) })
-	}})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "get [id]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Get webhook endpoint (pick interactively if omitted)",
+		RunE: func(c *cobra.Command, args []string) error {
+			id, err := resolveID(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksGet(rt.Context(), id) })
+		},
+	})
 
 	var ubody, ufile string
-	update := &cobra.Command{Use: "update [id]", Args: cobra.ExactArgs(1), Short: "Update webhook endpoint", RunE: func(c *cobra.Command, args []string) error {
-		b, err := cmdutil.ReadBody(ubody, ufile)
-		if err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksUpdate(rt.Context(), args[0], b) })
-	}}
+	update := &cobra.Command{
+		Use:   "update [id]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Update webhook endpoint",
+		RunE: func(c *cobra.Command, args []string) error {
+			id, err := resolveID(rt, args)
+			if err != nil {
+				return err
+			}
+			b, err := cmdutil.ReadBody(ubody, ufile)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksUpdate(rt.Context(), id, b) })
+		},
+	}
 	cmdutil.BodyFlags(update, &ubody, &ufile)
 	cmd.AddCommand(update)
 
-	cmd.AddCommand(&cobra.Command{Use: "delete [id]", Args: cobra.ExactArgs(1), Short: "Delete webhook endpoint", RunE: func(c *cobra.Command, args []string) error {
-		if err := cmdutil.ConfirmDestructive(rt, "Delete this webhook?"); err != nil {
-			return err
-		}
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksDelete(rt.Context(), args[0]) })
-	}})
-	cmd.AddCommand(&cobra.Command{Use: "test [id]", Args: cobra.ExactArgs(1), Short: "Send a test event", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksTest(rt.Context(), args[0]) })
-	}})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "delete [id]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Delete webhook endpoint",
+		RunE: func(c *cobra.Command, args []string) error {
+			id, err := resolveID(rt, args)
+			if err != nil {
+				return err
+			}
+			if err := cmdutil.ConfirmDestructive(rt, "Delete this webhook?"); err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksDelete(rt.Context(), id) })
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "test [id]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "Send a test event",
+		RunE: func(c *cobra.Command, args []string) error {
+			id, err := resolveID(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksTest(rt.Context(), id) })
+		},
+	})
 
 	var dq []string
-	deliv := &cobra.Command{Use: "deliveries [id]", Args: cobra.ExactArgs(1), Short: "List deliveries for a webhook", RunE: func(c *cobra.Command, args []string) error {
-		return cmdutil.Run(rt, func() (any, error) { return rt.API.WebhooksDeliveries(rt.Context(), args[0], cmdutil.QueryFromPairs(dq)) })
-	}}
+	deliv := &cobra.Command{
+		Use:   "deliveries [id]",
+		Args:  cobra.MaximumNArgs(1),
+		Short: "List deliveries for a webhook",
+		RunE: func(c *cobra.Command, args []string) error {
+			id, err := resolveID(rt, args)
+			if err != nil {
+				return err
+			}
+			return cmdutil.Run(rt, func() (any, error) {
+				return rt.API.WebhooksDeliveries(rt.Context(), id, cmdutil.QueryFromPairs(dq))
+			})
+		},
+	}
 	cmdutil.FilterFlag(deliv, &dq)
 	cmd.AddCommand(deliv)
 
