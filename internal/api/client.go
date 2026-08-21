@@ -37,7 +37,11 @@ type Client struct {
 func New(apiKey, baseURL string) (*Client, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
-		return nil, &APIError{Code: "MISSING_API_KEY", Message: "No API key provided. Pass --api-key, set PRAXICRAFT_API_KEY, or run configure."}
+		return nil, &APIError{
+			Code: "MISSING_API_KEY",
+			Message: "No API key provided. Run `praxicraft-assess configure`, pass --api-key, or set PRAXICRAFT_API_KEY. " +
+				"Create a key at https://assess.praxicraft.com/assess/api — docs: https://docs.praxicraft.com/authentication",
+		}
 	}
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {

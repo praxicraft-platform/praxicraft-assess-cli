@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
 )
 
 const (
@@ -93,8 +94,12 @@ func Resolve(flagProfile, flagAPIKey, flagBaseURL string) (*Resolved, error) {
 	if err != nil {
 		return nil, err
 	}
-	profile := firstNonEmpty(flagProfile, os.Getenv(EnvProfile), f.DefaultProfile, "default")
-	p := f.Profiles[profile]
+	explicitProfile := firstNonEmpty(flagProfile, os.Getenv(EnvProfile))
+	profile := firstNonEmpty(explicitProfile, f.DefaultProfile, "default")
+	p, ok := f.Profiles[profile]
+	if explicitProfile != "" && !ok {
+		return nil, &api.UsageError{Msg: fmt.Sprintf("profile %q not found — run `praxicraft-assess configure --name %s` or `configure list`", profile, profile)}
+	}
 
 	apiKey := firstNonEmpty(flagAPIKey, os.Getenv(EnvAPIKey), p.APIKey)
 	baseURL := firstNonEmpty(flagBaseURL, os.Getenv(EnvBaseURL), p.BaseURL, "https://assess.praxicraft.com")

@@ -23,7 +23,7 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	audit := &cobra.Command{Use: "audit-log", Short: "Organisation audit log", RunE: func(c *cobra.Command, args []string) error {
 		return cmdutil.Run(rt, func() (any, error) { return rt.API.OrgAuditLog(rt.Context(), cmdutil.QueryFromPairs(auditQ)) })
 	}}
-	audit.Flags().StringArrayVar(&auditQ, "query", nil, "query key=value")
+	cmdutil.FilterFlag(audit, &auditQ)
 	cmd.AddCommand(audit)
 
 	squads := &cobra.Command{Use: "squads", Short: "Squads"}

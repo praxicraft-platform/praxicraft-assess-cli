@@ -3,71 +3,157 @@ package ui
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync"
 
-	"github.com/charmbracelet/huh"
+	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
+	"golang.org/x/term"
 )
 
-// Enabled reports whether interactive prompts are allowed.
+// Options controls interactive prompting.
 type Options struct {
 	Interactive bool
 	Yes         bool
 }
 
-// Confirm asks y/n unless Yes or non-interactive.
+var (
+	stdinOnce sync.Once
+	stdinR    *bufio.Reader
+)
+
+func stdin() *bufio.Reader {
+	stdinOnce.Do(func() {
+		stdinR = bufio.NewReader(os.Stdin)
+	})
+	return stdinR
+}
+
+// Confirm asks y/N unless Yes or non-interactive (runner-style).
 func Confirm(opts Options, message string) (bool, error) {
 	if opts.Yes {
 		return true, nil
 	}
 	if !opts.Interactive {
-		return false, fmt.Errorf("refusing destructive action without --yes in non-interactive mode")
+		return false, &api.UsageError{Msg: "refusing destructive action without --yes in non-interactive mode"}
 	}
-	var ok bool
-	err := huh.NewConfirm().Title(message).Value(&ok).Run()
-	return ok, err
+	fmt.Fprintf(os.Stdout, "%s (Y/N) [press Enter for N] ", message)
+	line, err := readLine()
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
-// PromptString asks for a required string when empty and interactive.
-func PromptString(opts Options, title, current string) (string, error) {
-	if strings.TrimSpace(current) != "" {
-		return current, nil
-	}
+// PromptEnter asks a question in GitHub Actions runner style.
+// Example: Enter the name of the runner: [press Enter for hostname]
+func PromptEnter(opts Options, question, def string) (string, error) {
 	if !opts.Interactive {
-		return "", fmt.Errorf("%s is required", title)
+		if strings.TrimSpace(def) != "" {
+			return strings.TrimSpace(def), nil
+		}
+		return "", requiredErr(question)
 	}
-	var v string
-	err := huh.NewInput().Title(title).Value(&v).Run()
+	if def != "" {
+		fmt.Fprintf(os.Stdout, "%s [press Enter for %s] ", question, def)
+	} else {
+		fmt.Fprintf(os.Stdout, "%s ", question)
+	}
+	line, err := readLine()
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(v) == "" {
-		return "", fmt.Errorf("%s is required", title)
+	line = strings.TrimSpace(line)
+	if line == "" {
+		line = strings.TrimSpace(def)
 	}
-	return strings.TrimSpace(v), nil
+	if line == "" {
+		return "", requiredErr(question)
+	}
+	return line, nil
 }
 
-// PromptSecret asks for an API key.
-func PromptSecret(opts Options, title string) (string, error) {
+// PromptSecretEnter asks for a secret with no echo (runner-style question text).
+func PromptSecretEnter(opts Options, question string) (string, error) {
 	if !opts.Interactive {
-		return "", fmt.Errorf("%s is required", title)
+		return "", requiredErr(question)
 	}
-	var v string
-	err := huh.NewInput().Title(title).EchoMode(huh.EchoModePassword).Value(&v).Run()
-	return strings.TrimSpace(v), err
+	fmt.Fprintf(os.Stdout, "%s ", question)
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		b, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stdout)
+		if err != nil {
+			return "", err
+		}
+		v := strings.TrimSpace(string(b))
+		if v == "" {
+			return "", requiredErr(question)
+		}
+		return v, nil
+	}
+	line, err := readLine()
+	if err != nil {
+		return "", err
+	}
+	v := strings.TrimSpace(line)
+	if v == "" {
+		return "", requiredErr(question)
+	}
+	return v, nil
+}
+
+func requiredErr(question string) error {
+	q := strings.TrimSpace(question)
+	q = strings.TrimSuffix(q, ":")
+	return &api.UsageError{Msg: q + " is required (pass a flag, or omit --non-interactive)"}
+}
+
+// OK prints a runner-style success line.
+func OK(msg string) {
+	fmt.Fprintf(os.Stdout, "√ %s\n", msg)
+}
+
+// Section prints a runner-style section header.
+func Section(title string) {
+	fmt.Fprintf(os.Stdout, "\n# %s\n\n", title)
+}
+
+// PromptString keeps a short label form for missing command flags.
+func PromptString(opts Options, label, def string) (string, error) {
+	q := "Enter " + label + ":"
+	return PromptEnter(opts, q, def)
+}
+
+// PromptSecret keeps a short label form for missing command flags.
+func PromptSecret(opts Options, label string) (string, error) {
+	return PromptSecretEnter(opts, "Enter "+label+":")
 }
 
 // ReadLine reads a single line from stdin (REPL).
 func ReadLine(prompt string) (string, error) {
 	fmt.Fprint(os.Stdout, prompt)
-	sc := bufio.NewScanner(os.Stdin)
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return "", err
+	return readLine()
+}
+
+func readLine() (string, error) {
+	line, err := stdin().ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			if strings.TrimSpace(line) != "" {
+				return strings.TrimRight(line, "\r\n"), nil
+			}
+			return "", ioEOF
 		}
-		return "", ioEOF
+		return "", err
 	}
-	return sc.Text(), nil
+	return strings.TrimRight(line, "\r\n"), nil
 }
 
 var ioEOF = fmt.Errorf("EOF")

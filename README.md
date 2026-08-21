@@ -109,6 +109,7 @@ Run `praxicraft-assess <command> --help` for flags on any command.
 | `--profile` | Named config profile |
 | `--output` | `json` (default for scripts), `table`, or `yaml` |
 | `--query` | JMESPath filter on JSON output |
+| `--filter` | API list filter as `key=value` (repeatable; on list commands) |
 | `--yes` | Skip confirmation prompts |
 | `--non-interactive` | Disable interactive prompts (CI-friendly) |
 

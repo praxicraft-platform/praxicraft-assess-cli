@@ -50,8 +50,27 @@ func Execute() int {
 
 func newRoot(opts *runtime.Options, rt *runtime.Runtime) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "praxicraft-assess",
-		Short:         "Praxicraft Assess CLI — manage assessments, invites, pipelines, webhooks, and more",
+		Use:   "praxicraft-assess",
+		Short: "Praxicraft Assess CLI — manage assessments, invites, pipelines, webhooks, and more",
+		Long: `Praxicraft Assess CLI — manage assessments, invites, pipelines, webhooks, and more.
+
+Get started:
+  praxicraft-assess configure
+  praxicraft-assess whoami
+  praxicraft-assess assessments list
+
+Docs:      ` + brand.DocsURL + `
+CLI guide: ` + brand.CLIDocsURL + `
+API keys:  ` + brand.APIKeysURL + `
+
+Run with no arguments in a terminal to open an interactive shell.
+Use --help on any command for flags and examples.`,
+		Example: `  praxicraft-assess configure
+  praxicraft-assess whoami
+  praxicraft-assess assessments list
+  praxicraft-assess invites create my-assessment --email candidate@example.com
+  praxicraft-assess --query 'results[0].email' invites list
+  praxicraft-assess assessments list --filter status=active --output table`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -65,24 +84,16 @@ func newRoot(opts *runtime.Options, rt *runtime.Runtime) *cobra.Command {
 	root.PersistentFlags().StringVar(&opts.APIKey, "api-key", "", "API key (or PRAXICRAFT_API_KEY)")
 	root.PersistentFlags().StringVar(&opts.BaseURL, "base-url", "", "API base URL")
 	root.PersistentFlags().StringVar(&opts.Output, "output", "", "json|table|yaml")
-	root.PersistentFlags().StringVar(&opts.Query, "query", "", "JMESPath query")
+	root.PersistentFlags().StringVar(&opts.Query, "query", "", "JMESPath query on JSON output")
 	root.PersistentFlags().BoolVar(&opts.Yes, "yes", false, "skip confirmation prompts")
 	root.PersistentFlags().BoolVar(&opts.NonInteractive, "non-interactive", false, "disable prompts")
-	root.PersistentFlags().BoolVar(&opts.NoBanner, "no-banner", false, "disable Praxicraft brand banner")
-	root.PersistentFlags().BoolVar(&opts.Debug, "debug", false, "debug logging")
-	root.PersistentFlags().IntVar(&opts.MaxItems, "max-items", 0, "max items when paginating")
-	root.PersistentFlags().StringVar(&opts.StartingToken, "starting-token", "", "pagination token")
-	root.PersistentFlags().BoolVar(&opts.NoPaginate, "no-paginate", false, "disable auto pagination")
+	root.PersistentFlags().BoolVar(&opts.NoBanner, "no-banner", false, "suppress startup message in interactive mode")
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print CLI version",
 		Run: func(cmd *cobra.Command, args []string) {
-			if !opts.NoBanner && brand.IsTTY(os.Stdout.Fd()) {
-				brand.Banner(os.Stdout, Version)
-			} else {
-				fmt.Printf("praxicraft-assess %s\n", Version)
-			}
+			brand.VersionLine(os.Stdout, Version)
 		},
 	})
 
@@ -104,11 +115,15 @@ func newRoot(opts *runtime.Options, rt *runtime.Runtime) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "interactive",
 		Short: "Start an interactive Praxicraft Assess shell",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			*rt = *runtime.New(*opts)
 			rt.Opts.Version = Version
 			rt.ShowBanner()
-			os.Exit(runREPL(root, rt))
+			code := runREPL(root, rt)
+			if code != 0 {
+				os.Exit(code)
+			}
+			return nil
 		},
 	})
 
@@ -127,7 +142,7 @@ func newRoot(opts *runtime.Options, rt *runtime.Runtime) *cobra.Command {
 }
 
 func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
-	fmt.Fprintln(os.Stderr, "Type commands (e.g. org get). exit / quit to leave.")
+	fmt.Fprintln(os.Stderr, "Type commands (e.g. org get). help, exit / quit to leave.")
 	for {
 		line, err := ui.ReadLine(brand.PromptPrefix())
 		if err != nil {
@@ -145,15 +160,22 @@ func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
 		if line == "exit" || line == "quit" {
 			return 0
 		}
-		if line == "help" {
+		if line == "help" || line == "--help" || line == "-h" {
 			_ = root.Help()
 			continue
 		}
 		args := splitArgs(line)
+		if len(args) > 0 && args[0] == "interactive" {
+			fmt.Fprintln(os.Stderr, "already in interactive mode")
+			continue
+		}
 		root.SetArgs(args)
 		if err := root.Execute(); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 		}
+		// Reset local flag values so the next REPL line starts clean.
+		_ = root.Flags().Parse([]string{})
+		root.SetArgs(nil)
 	}
 }
 

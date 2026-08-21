@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
@@ -14,19 +15,15 @@ import (
 
 // Options are global CLI flags.
 type Options struct {
-	Profile         string
-	APIKey          string
-	BaseURL         string
-	Output          string
-	Query           string
-	Yes             bool
-	NonInteractive  bool
-	NoBanner        bool
-	Debug           bool
-	MaxItems        int
-	StartingToken   string
-	NoPaginate      bool
-	Version         string
+	Profile        string
+	APIKey         string
+	BaseURL        string
+	Output         string
+	Query          string // JMESPath (--query)
+	Yes            bool
+	NonInteractive bool
+	NoBanner       bool
+	Version        string
 }
 
 // Runtime is the shared session for commands.
@@ -39,10 +36,12 @@ type Runtime struct {
 
 // New builds a Runtime and resolves config. API client is created lazily via EnsureAPI.
 func New(opts Options) *Runtime {
-	interactive := !opts.NonInteractive && brand.IsTTY(os.Stdin.Fd()) && brand.IsTTY(os.Stdout.Fd())
+	// Prompts run whenever --non-interactive is not set (same idea as runner config.sh).
+	// Output format still prefers table only on a real TTY.
+	promptsOK := !opts.NonInteractive
 	format := opts.Output
 	if format == "" {
-		if interactive {
+		if promptsOK && brand.IsTTY(os.Stdout.Fd()) {
 			format = string(output.Table)
 		} else {
 			format = string(output.JSON)
@@ -51,7 +50,7 @@ func New(opts Options) *Runtime {
 	return &Runtime{
 		Opts: opts,
 		Out:  output.NewPrinter(format, opts.Query),
-		UI:   ui.Options{Interactive: interactive, Yes: opts.Yes},
+		UI:   ui.Options{Interactive: promptsOK, Yes: opts.Yes},
 	}
 }
 
@@ -62,7 +61,7 @@ func (r *Runtime) EnsureAPI() error {
 	}
 	res, err := config.Resolve(r.Opts.Profile, r.Opts.APIKey, r.Opts.BaseURL)
 	if err != nil {
-		return err
+		return &api.UsageError{Msg: err.Error()}
 	}
 	c, err := api.New(res.APIKey, res.BaseURL)
 	if err != nil {
@@ -97,7 +96,7 @@ func (r *Runtime) Context() context.Context {
 	return context.Background()
 }
 
-// ShowBanner prints brand banner when appropriate.
+// ShowBanner prints a quiet interactive welcome (gh-style), not a product MotD.
 func (r *Runtime) ShowBanner() {
 	if r.Opts.NoBanner || r.Opts.NonInteractive {
 		return
@@ -105,5 +104,5 @@ func (r *Runtime) ShowBanner() {
 	if !brand.IsTTY(os.Stderr.Fd()) {
 		return
 	}
-	brand.Banner(os.Stderr, r.Opts.Version)
+	fmt.Fprintf(os.Stderr, "praxicraft-assess %s\nType 'help' for commands, or 'exit' to quit.\n\n", r.Opts.Version)
 }

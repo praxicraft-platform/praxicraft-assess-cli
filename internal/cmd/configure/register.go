@@ -2,7 +2,9 @@ package configure
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/brand"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/config"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/ui"
@@ -14,6 +16,16 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 	cmd := &cobra.Command{
 		Use:   "configure",
 		Short: "Set API key and base URL for a profile",
+		Long: `Register this CLI with your Praxicraft Assess organisation.
+
+Create an API key in the dashboard (Assess → Developer → API Keys), then run
+configure and paste it when prompted. Keys are shown once (ct_live_… / ct_test_…).
+
+  Product:   ` + brand.ProductURL + `
+  Docs:      ` + brand.DocsURL + `
+  CLI guide: ` + brand.CLIDocsURL + `
+  API keys:  ` + brand.APIKeysURL + `
+`,
 		RunE: func(c *cobra.Command, args []string) error {
 			if name == "" {
 				name = "default"
@@ -21,18 +33,40 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 			apiKey := rt.Opts.APIKey
 			baseURL := rt.Opts.BaseURL
 			var err error
+
+			brand.ConfigureIntro(os.Stdout)
+
+			ui.Section("Authentication")
+
 			if apiKey == "" {
-				apiKey, err = ui.PromptSecret(rt.UI, "API key (ct_live_… / ct_test_…)")
+				fmt.Println("Paste a ct_live_… or ct_test_… key from Assess → Developer → API Keys.")
+				fmt.Println("Create one here:", brand.APIKeysURL)
+				fmt.Println()
+				apiKey, err = ui.PromptSecretEnter(rt.UI, "Enter your Praxicraft Assess API key:")
 				if err != nil {
 					return err
 				}
+			} else {
+				fmt.Println("Using API key from flags or environment.")
 			}
+			ui.OK("API key accepted")
+
+			ui.Section("Configuration")
+
 			if baseURL == "" {
-				baseURL, err = ui.PromptString(rt.UI, "Base URL", "https://assess.praxicraft.com")
+				baseURL, err = ui.PromptEnter(rt.UI, "Enter the API base URL:", brand.DefaultBaseURL)
 				if err != nil {
 					return err
 				}
+			} else {
+				fmt.Printf("Using base URL %s\n", baseURL)
 			}
+
+			name, err = ui.PromptEnter(rt.UI, "Enter the name of the profile to save:", name)
+			if err != nil {
+				return err
+			}
+
 			f, err := config.Load()
 			if err != nil {
 				return err
@@ -48,7 +82,8 @@ func Register(parent *cobra.Command, rt *runtime.Runtime) {
 				return err
 			}
 			path, _ := config.ConfigPath()
-			fmt.Printf("Saved profile %q to %s\n", name, path)
+			ui.OK("Settings Saved.")
+			fmt.Printf("\nProfile %q written to %s\n", name, path)
 			return nil
 		},
 	}
