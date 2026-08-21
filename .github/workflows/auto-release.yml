@@ -1,0 +1,117 @@
+name: auto-release
+
+# When important CLI source changes land on main, bump patch version,
+# update CHANGELOG.md, tag, and publish binaries via GoReleaser.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".goreleaser.yaml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Avoid loops from the release commit itself, and skip docs-only tooling bumps.
+    if: >
+      !startsWith(github.event.head_commit.message, 'chore(release):')
+      && !contains(github.event.head_commit.message, '[skip release]')
+      && github.event.head_commit.author.name != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute next version and changelog notes
+        id: ver
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          LATEST="$(git describe --tags --abbrev=0 2>/dev/null || echo 'v0.0.0')"
+          RAW="${LATEST#v}"
+          IFS=. read -r MAJOR MINOR PATCH <<<"$RAW"
+          MAJOR="${MAJOR:-0}"
+          MINOR="${MINOR:-0}"
+          PATCH="${PATCH:-0}"
+          PATCH=$((PATCH + 1))
+          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          NOTES="$(git log "${LATEST}..HEAD" --pretty=format:'- %s' --no-merges | sed '/^chore(release):/d' || true)"
+          if [ -z "$NOTES" ]; then
+            NOTES="- Maintenance release."
+          fi
+          {
+            echo "latest=${LATEST}"
+            echo "next=${NEXT}"
+            echo "version=${NEXT#v}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "NOTES<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Latest tag: ${LATEST} → next ${NEXT}"
+
+      - name: Bump version files and CHANGELOG
+        env:
+          NEXT: ${{ steps.ver.outputs.next }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          NOTES: ${{ steps.ver.outputs.NOTES }}
+        run: |
+          set -euo pipefail
+          # Default version strings in source (ldflags override on release builds).
+          sed -i 's/var Version = "[^"]*"/var Version = "'"${VERSION}"'"/' internal/cmdroot/root.go
+          sed -i 's/var version = "[^"]*"/var version = "'"${VERSION}"'"/' cmd/praxicraft-assess/main.go
+
+          TMP="$(mktemp)"
+          {
+            echo "# Changelog"
+            echo
+            echo "## ${VERSION}"
+            echo
+            echo "${NOTES}"
+            echo
+            # Keep prior sections (drop the leading "# Changelog" header from file).
+            tail -n +2 CHANGELOG.md | sed -n '/^## /,$p'
+          } > "$TMP"
+          mv "$TMP" CHANGELOG.md
+
+      - name: Commit, tag, and push
+        env:
+          NEXT: ${{ steps.ver.outputs.next }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md internal/cmdroot/root.go cmd/praxicraft-assess/main.go
+          if git diff --cached --quiet; then
+            echo "Nothing to commit (version already at ${VERSION})"
+            exit 0
+          fi
+          # Plain commit message — no Co-authored-by trailers.
+          git commit -m "chore(release): ${NEXT}"
+          git tag -a "${NEXT}" -m "Release ${NEXT}"
+          git push origin HEAD:main
+          git push origin "${NEXT}"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
