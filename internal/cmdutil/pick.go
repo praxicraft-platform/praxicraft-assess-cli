@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
@@ -53,7 +54,7 @@ type ChoiceFromRow func(map[string]any) (ui.Choice, bool)
 // PickPaged walks list pages with a "Load more…" option until the user picks or cancels.
 func PickPaged(rt *runtime.Runtime, title string, emptyMsg string, fetch func(url.Values) (any, error), fromRow ChoiceFromRow) (string, error) {
 	if err := rt.EnsureAPI(); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w\n  tip: run `praxicraft-assess configure` or set PRAXICRAFT_API_KEY", err)
 	}
 	q := url.Values{}
 	q.Set("page_size", "50")
@@ -86,6 +87,10 @@ func PickPaged(rt *runtime.Runtime, title string, emptyMsg string, fetch func(ur
 				q = nextQ
 				continue
 			}
+			ui.Panel(title, "nothing here yet")
+			ui.Warn(emptyMsg)
+			ui.Note("create one in the dashboard, or try another filter")
+			fmt.Fprintln(os.Stdout)
 			return "", &api.UsageError{Msg: emptyMsg}
 		}
 
@@ -93,12 +98,14 @@ func PickPaged(rt *runtime.Runtime, title string, emptyMsg string, fetch func(ur
 		copy(choices, accumulated)
 		if more {
 			choices = append(choices, ui.Choice{
-				Label: fmt.Sprintf("↓ Load more… (%d so far)", len(accumulated)),
+				Key:   "m",
+				Label: "Load more",
+				Hint:  fmt.Sprintf("%d loaded · fetch next page", len(accumulated)),
 				Value: loadMoreValue,
 			})
 		}
 
-		selected, err := ui.Select(rt.UI, title, choices)
+		selected, err := ui.SelectWithHint(rt.UI, title, "↑/↓ or number · esc cancel", choices)
 		if err != nil {
 			return "", err
 		}
@@ -125,14 +132,15 @@ func PickAssessmentSlug(rt *runtime.Runtime) (string, error) {
 			}
 			title := fieldString(m, "title", "name")
 			status := fieldString(m, "status")
-			label := slug
-			if title != "" {
-				label = fmt.Sprintf("%s — %s", slug, title)
-			}
+			hint := title
 			if status != "" {
-				label = label + " [" + status + "]"
+				if hint != "" {
+					hint = hint + " · " + status
+				} else {
+					hint = status
+				}
 			}
-			return ui.Choice{Label: label, Value: slug}, true
+			return ui.Choice{Label: slug, Hint: hint, Value: slug}, true
 		},
 	)
 }
@@ -148,17 +156,18 @@ func PickInviteToken(rt *runtime.Runtime) (string, error) {
 			}
 			email := fieldString(m, "email")
 			status := fieldString(m, "status")
-			label := token
-			if len(token) > 12 {
-				label = token[:12] + "…"
+			label := email
+			if label == "" {
+				label = token
+				if len(label) > 16 {
+					label = label[:16] + "…"
+				}
 			}
-			if email != "" {
-				label = email + " · " + label
+			hint := status
+			if hint == "" {
+				hint = "invite"
 			}
-			if status != "" {
-				label = label + " [" + status + "]"
-			}
-			return ui.Choice{Label: label, Value: token}, true
+			return ui.Choice{Label: label, Hint: hint, Value: token}, true
 		},
 	)
 }
@@ -173,11 +182,7 @@ func PickPipelineSlug(rt *runtime.Runtime) (string, error) {
 				return ui.Choice{}, false
 			}
 			name := fieldString(m, "name", "title")
-			label := slug
-			if name != "" {
-				label = fmt.Sprintf("%s — %s", slug, name)
-			}
-			return ui.Choice{Label: label, Value: slug}, true
+			return ui.Choice{Label: slug, Hint: name, Value: slug}, true
 		},
 	)
 }
@@ -193,13 +198,10 @@ func PickWebhookID(rt *runtime.Runtime) (string, error) {
 			}
 			urlStr := fieldString(m, "url", "endpoint_url")
 			label := id
-			if len(id) > 8 {
-				label = id[:8]
+			if len(id) > 10 {
+				label = id[:10] + "…"
 			}
-			if urlStr != "" {
-				label = label + " · " + urlStr
-			}
-			return ui.Choice{Label: label, Value: id}, true
+			return ui.Choice{Label: label, Hint: urlStr, Value: id}, true
 		},
 	)
 }

@@ -115,14 +115,9 @@ func requiredErr(question string) error {
 	return &api.UsageError{Msg: q + " is required (pass a flag, or omit --non-interactive)"}
 }
 
-// OK prints a runner-style success line.
-func OK(msg string) {
-	fmt.Fprintf(os.Stdout, "√ %s\n", msg)
-}
-
-// Section prints a runner-style section header.
+// Section prints a framed section header (configure / wizards).
 func Section(title string) {
-	fmt.Fprintf(os.Stdout, "\n# %s\n\n", title)
+	Panel(title, "")
 }
 
 // PromptString keeps a short label form for missing command flags.

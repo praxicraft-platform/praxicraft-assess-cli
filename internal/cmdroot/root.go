@@ -18,13 +18,14 @@ import (
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmd/pipelines"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmd/results"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/cmd/webhooks"
+	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/config"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/runtime"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 // Version is injected via ldflags.
-var Version = "0.1.3"
+var Version = "0.1.4"
 
 // Execute runs the root command and returns a process exit code.
 func Execute() int {
@@ -43,7 +44,12 @@ func Execute() int {
 	}
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		var abort *api.AbortError
+		if errors.As(err, &abort) {
+			ui.Aborted()
+			return api.ExitOK
+		}
+		ui.Fail(err)
 		return api.ExitCode(err)
 	}
 	return api.ExitOK
@@ -145,11 +151,14 @@ Use --help on any command for flags and examples.`,
 }
 
 func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
-	fmt.Fprintln(os.Stderr, "Interactive mode — ↑/↓ select a resource command, Enter to run. Type any command, or menu / exit.")
-	// Open the picker immediately so the first action is choosing a resource.
 	if picked, err := pickREPLCommand(rt); err == nil {
 		if code := runREPLLine(root, rt, picked); code >= 0 {
 			return code
+		}
+	} else {
+		var abort *api.AbortError
+		if !errors.As(err, &abort) {
+			ui.Fail(err)
 		}
 	}
 
@@ -160,7 +169,7 @@ func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
 				fmt.Fprintln(os.Stdout)
 				return 0
 			}
-			fmt.Fprintln(os.Stderr, err)
+			ui.Fail(err)
 			return api.ExitUsage
 		}
 		line = strings.TrimSpace(line)
@@ -169,9 +178,10 @@ func runREPL(root *cobra.Command, rt *runtime.Runtime) int {
 			if perr != nil {
 				var abort *api.AbortError
 				if errors.As(perr, &abort) {
+					ui.Aborted()
 					continue
 				}
-				fmt.Fprintln(os.Stderr, perr.Error())
+				ui.Fail(perr)
 				continue
 			}
 			line = picked
@@ -189,6 +199,7 @@ func runREPLLine(root *cobra.Command, rt *runtime.Runtime, line string) int {
 		return -1
 	}
 	if line == "exit" || line == "quit" {
+		ui.Done("goodbye")
 		return 0
 	}
 	if line == "help" || line == "--help" || line == "-h" {
@@ -197,51 +208,159 @@ func runREPLLine(root *cobra.Command, rt *runtime.Runtime, line string) int {
 	}
 	args := splitArgs(line)
 	if len(args) > 0 && args[0] == "interactive" {
-		fmt.Fprintln(os.Stderr, "already in interactive mode")
+		ui.Warn("already in interactive mode")
 		return -1
 	}
 	root.SetArgs(args)
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-	}
+	err := root.Execute()
 	_ = root.Flags().Parse([]string{})
 	root.SetArgs(nil)
+	if err != nil {
+		var abort *api.AbortError
+		if errors.As(err, &abort) {
+			ui.Aborted()
+			return -1
+		}
+		ui.Fail(err)
+		return -1
+	}
+	ui.Done("done · Enter opens command center · or type a command")
 	return -1
 }
 
 func pickREPLCommand(rt *runtime.Runtime) (string, error) {
-	choices := []ui.Choice{
-		{Label: "whoami — current organisation", Value: "whoami"},
-		{Label: "org get — organisation profile", Value: "org get"},
-		{Label: "org stats — organisation stats", Value: "org stats"},
-		{Label: "org team — team members", Value: "org team"},
-		{Label: "assessments list", Value: "assessments list"},
-		{Label: "assessments get — pick assessment", Value: "assessments get"},
-		{Label: "assessments results — pick assessment", Value: "assessments results"},
-		{Label: "assessments cases list — pick assessment", Value: "assessments cases list"},
-		{Label: "invites list", Value: "invites list"},
-		{Label: "invites create — pick assessment + form", Value: "invites create"},
-		{Label: "invites result — pick invite", Value: "invites result"},
-		{Label: "invites remind — pick invite", Value: "invites remind"},
-		{Label: "invites cancel — pick invite", Value: "invites cancel"},
-		{Label: "results list — pick assessment", Value: "results list"},
-		{Label: "results get — pick invite", Value: "results get"},
-		{Label: "cases list — organisation cases", Value: "cases list"},
-		{Label: "cases platform-list — platform catalog", Value: "cases platform-list"},
-		{Label: "pipelines list", Value: "pipelines list"},
-		{Label: "pipelines get — pick pipeline", Value: "pipelines get"},
-		{Label: "pipelines enrollments — pick pipeline", Value: "pipelines enrollments"},
-		{Label: "webhooks list", Value: "webhooks list"},
-		{Label: "webhooks get — pick webhook", Value: "webhooks get"},
-		{Label: "webhooks deliveries — pick webhook", Value: "webhooks deliveries"},
-		{Label: "webhooks test — pick webhook", Value: "webhooks test"},
-		{Label: "interviews list", Value: "interviews list"},
-		{Label: "integrations list", Value: "integrations list"},
-		{Label: "configure — API key & profile", Value: "configure"},
-		{Label: "help", Value: "help"},
-		{Label: "exit", Value: "exit"},
+	act := func(key, label, hint, cmd string) ui.MenuNode {
+		return ui.MenuNode{Key: key, Label: label, Hint: hint, Command: cmd}
 	}
-	return ui.Select(rt.UI, "What do you want to do?", choices)
+	menu := []ui.MenuNode{
+		{
+			Key: "1", Label: "Assessments", Hint: "screens · cases · results",
+			Children: []ui.MenuNode{
+				act("l", "List", "all assessments", "assessments list"),
+				act("g", "Get", "open one (pick)", "assessments get"),
+				act("r", "Results", "scores for one assessment", "assessments results"),
+				act("c", "Cases", "cases on an assessment", "assessments cases list"),
+			},
+		},
+		{
+			Key: "2", Label: "Invites", Hint: "create · remind · cancel",
+			Children: []ui.MenuNode{
+				act("l", "List", "all invitations", "invites list"),
+				act("c", "Create", "invite a candidate", "invites create"),
+				act("r", "Result", "outcome for one invite", "invites result"),
+				act("m", "Remind", "nudge a candidate", "invites remind"),
+				act("x", "Cancel", "revoke an invite", "invites cancel"),
+			},
+		},
+		{
+			Key: "3", Label: "Results", Hint: "scores by assessment or token",
+			Children: []ui.MenuNode{
+				act("l", "List", "by assessment", "results list"),
+				act("g", "Get", "by invite token", "results get"),
+			},
+		},
+		{
+			Key: "4", Label: "Pipelines", Hint: "stages · enrollments",
+			Children: []ui.MenuNode{
+				act("l", "List", "all pipelines", "pipelines list"),
+				act("g", "Get", "open one (pick)", "pipelines get"),
+				act("e", "Enrollments", "candidates in a pipeline", "pipelines enrollments"),
+			},
+		},
+		{
+			Key: "5", Label: "Webhooks", Hint: "endpoints · deliveries · test",
+			Children: []ui.MenuNode{
+				act("l", "List", "all endpoints", "webhooks list"),
+				act("g", "Get", "open one (pick)", "webhooks get"),
+				act("d", "Deliveries", "delivery log", "webhooks deliveries"),
+				act("t", "Test", "send a test event", "webhooks test"),
+			},
+		},
+		{
+			Key: "6", Label: "Cases", Hint: "org library · platform catalog",
+			Children: []ui.MenuNode{
+				act("o", "Organisation", "your case library", "cases list"),
+				act("p", "Platform", "shared catalog", "cases platform-list"),
+			},
+		},
+		{
+			Key: "7", Label: "Organisation", Hint: "whoami · team · stats",
+			Children: []ui.MenuNode{
+				act("w", "Whoami", "current organisation", "whoami"),
+				act("g", "Profile", "org get", "org get"),
+				act("s", "Stats", "invite quota & usage", "org stats"),
+				act("t", "Team", "members", "org team"),
+			},
+		},
+		{
+			Key: "8", Label: "Interviews", Hint: "live rooms",
+			Children: []ui.MenuNode{
+				act("l", "List", "interview rooms", "interviews list"),
+			},
+		},
+		{
+			Key: "9", Label: "System", Hint: "configure · integrations · help",
+			Children: []ui.MenuNode{
+				act("c", "Configure", "API key & profile", "configure"),
+				act("i", "Integrations", "connected ATS", "integrations list"),
+				act("h", "Help", "command help", "help"),
+				act("x", "Exit", "leave interactive mode", "exit"),
+			},
+		},
+	}
+
+	session := ui.SessionInfo{
+		Version: rt.Opts.Version,
+		Profile: rt.Opts.Profile,
+		BaseURL: rt.Opts.BaseURL,
+	}
+	// Best-effort session enrichment (never blocks the menu).
+	if res, err := resolveSession(rt); err == nil {
+		if session.Profile == "" {
+			session.Profile = res.profile
+		}
+		if session.BaseURL == "" {
+			session.BaseURL = res.baseURL
+		}
+		session.OrgName = res.org
+	}
+
+	return ui.Shell(rt.UI, session, menu)
+}
+
+type sessionResolved struct {
+	profile string
+	baseURL string
+	org     string
+}
+
+func resolveSession(rt *runtime.Runtime) (sessionResolved, error) {
+	out := sessionResolved{}
+	res, err := config.Resolve(rt.Opts.Profile, rt.Opts.APIKey, rt.Opts.BaseURL)
+	if err != nil {
+		return out, err
+	}
+	out.profile = res.Profile
+	out.baseURL = res.BaseURL
+	if err := rt.EnsureAPI(); err != nil {
+		return out, nil
+	}
+	raw, err := rt.API.OrgGet(rt.Context())
+	if err != nil {
+		return out, nil
+	}
+	if m, ok := raw.(map[string]any); ok {
+		for _, k := range []string{"name", "organisation_name", "org_name", "slug"} {
+			if v, ok := m[k]; ok && v != nil {
+				s := strings.TrimSpace(fmt.Sprint(v))
+				if s != "" && s != "<nil>" {
+					out.org = s
+					break
+				}
+			}
+		}
+	}
+	return out, nil
 }
 
 func splitArgs(line string) []string {

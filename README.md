@@ -60,7 +60,7 @@ praxicraft-assess
 praxicraft-assess interactive
 ```
 
-You get an arrow-key menu (↑/↓, Enter) of resource commands. After the first action, press Enter again (or type `menu`) to reopen the picker. You can also type any command normally (e.g. `assessments list`).
+You see the Praxicraft ASCII wordmark, then a **command center**: press **1–9** to open a workspace (Assessments, Pipelines, Webhooks, …), then a **letter** to run an action (L list, G get, …). Esc/← goes back. After a command runs, press Enter for the menu again — or type any command normally.
 
 **Menu covers resources such as:**
 

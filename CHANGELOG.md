@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4
+
+- Interactive **command center**: numbered workspaces (1–9) → lettered actions; Praxicraft wordmark.
+- Framed UI everywhere: pickers, confirms (Y/N), invite wizard, configure, errors, REPL done strip.
+- Centered Praxicraft ASCII wordmark; single-object responses (e.g. invite create) print as a clear key/value table with full `invite_token` / `take_url`.
+- Table mode unwraps nested list envelopes (`integrations`, `results`, …) instead of dumping raw JSON; `meta` scalars print below the table.
+- Scenarios: empty lists, missing API key tips, overwrite profile confirm, abort/cancel, post-configure client refresh.
+
 ## 0.1.3
 
 - `--all` on list commands follows cursor/`page` pagination and merges `results` (default `page_size=100`).

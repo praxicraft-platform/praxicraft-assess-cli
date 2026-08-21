@@ -3,6 +3,7 @@ package configure
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/brand"
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/config"
@@ -36,30 +37,31 @@ configure and paste it when prompted. Keys are shown once (ct_live_… / ct_test
 
 			brand.ConfigureIntro(os.Stdout)
 
-			ui.Section("Authentication")
+			ui.Panel("Authentication", "paste a ct_live_… or ct_test_… key")
+			ui.Note("Create keys at " + brand.APIKeysURL)
+			fmt.Fprintln(os.Stdout)
 
 			if apiKey == "" {
-				fmt.Println("Paste a ct_live_… or ct_test_… key from Assess → Developer → API Keys.")
-				fmt.Println("Create one here:", brand.APIKeysURL)
-				fmt.Println()
 				apiKey, err = ui.PromptSecretEnter(rt.UI, "Enter your Praxicraft Assess API key:")
 				if err != nil {
 					return err
 				}
 			} else {
-				fmt.Println("Using API key from flags or environment.")
+				ui.Note("using API key from flags or environment")
+			}
+			if !looksLikeKey(apiKey) {
+				ui.Warn("key does not look like ct_live_… / ct_test_… — continuing anyway")
 			}
 			ui.OK("API key accepted")
 
-			ui.Section("Configuration")
-
+			ui.Panel("Configuration", "base URL and profile name")
 			if baseURL == "" {
 				baseURL, err = ui.PromptEnter(rt.UI, "Enter the API base URL:", brand.DefaultBaseURL)
 				if err != nil {
 					return err
 				}
 			} else {
-				fmt.Printf("Using base URL %s\n", baseURL)
+				ui.Note("using base URL " + baseURL)
 			}
 
 			name, err = ui.PromptEnter(rt.UI, "Enter the name of the profile to save:", name)
@@ -74,6 +76,16 @@ configure and paste it when prompted. Keys are shown once (ct_live_… / ct_test
 			if f.Profiles == nil {
 				f.Profiles = map[string]config.Profile{}
 			}
+			if _, exists := f.Profiles[name]; exists {
+				ok, cerr := ui.ConfirmTUI(rt.UI, fmt.Sprintf("Overwrite existing profile %q?", name))
+				if cerr != nil {
+					return cerr
+				}
+				if !ok {
+					ui.Aborted()
+					return nil
+				}
+			}
 			f.Profiles[name] = config.Profile{APIKey: apiKey, BaseURL: baseURL}
 			if f.DefaultProfile == "" {
 				f.DefaultProfile = name
@@ -81,9 +93,17 @@ configure and paste it when prompted. Keys are shown once (ct_live_… / ct_test
 			if err := config.Save(f); err != nil {
 				return err
 			}
+			// Refresh runtime client if configure was run from the REPL.
+			rt.API = nil
+			rt.Opts.APIKey = ""
+			rt.Opts.BaseURL = ""
+			rt.Opts.Profile = name
+
 			path, _ := config.ConfigPath()
-			ui.OK("Settings Saved.")
-			fmt.Printf("\nProfile %q written to %s\n", name, path)
+			ui.Panel("Saved", "profile ready")
+			ui.OK(fmt.Sprintf("profile %q written to %s", name, path))
+			ui.Note("try: praxicraft-assess whoami")
+			fmt.Fprintln(os.Stdout)
 			return nil
 		},
 	}
@@ -104,8 +124,19 @@ configure and paste it when prompted. Keys are shown once (ct_live_… / ct_test
 		for n, p := range f.Profiles {
 			rows = append(rows, row{Name: n, BaseURL: p.BaseURL, HasKey: p.APIKey != "", Default: n == f.DefaultProfile})
 		}
+		if len(rows) == 0 {
+			ui.Panel("Profiles", "none configured yet")
+			ui.Note("run: praxicraft-assess configure")
+			fmt.Fprintln(os.Stdout)
+			return nil
+		}
 		return rt.Out.Print(rows)
 	}}
 	cmd.AddCommand(list)
 	parent.AddCommand(cmd)
+}
+
+func looksLikeKey(k string) bool {
+	k = strings.TrimSpace(k)
+	return strings.HasPrefix(k, "ct_live_") || strings.HasPrefix(k, "ct_test_")
 }

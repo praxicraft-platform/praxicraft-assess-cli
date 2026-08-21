@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/praxicraft-platform/praxicraft-assess-cli/internal/api"
@@ -96,13 +95,13 @@ func (r *Runtime) Context() context.Context {
 	return context.Background()
 }
 
-// ShowBanner prints a quiet interactive welcome (gh-style), not a product MotD.
+// ShowBanner prints the Praxicraft wordmark for interactive mode.
 func (r *Runtime) ShowBanner() {
 	if r.Opts.NoBanner || r.Opts.NonInteractive {
 		return
 	}
-	if !brand.IsTTY(os.Stderr.Fd()) {
+	if !brand.IsTTY(os.Stdout.Fd()) {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "praxicraft-assess %s\nType 'help' for commands, or 'exit' to quit.\n\n", r.Opts.Version)
+	brand.InteractiveIntro(os.Stdout, r.Opts.Version)
 }
