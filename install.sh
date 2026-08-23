@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Install praxicraft-assess from the latest GitHub Release.
-# Usage: curl -fsSL https://raw.githubusercontent.com/praxicraft-platform/praxicraft-assess-cli/main/install.sh | sh
+# Usage: curl -fsSL https://praxicraft.com/install.sh | sh
+# (Branded URL redirects here from praxicraft.com.)
 set -eu
 
 REPO="praxicraft-platform/praxicraft-assess-cli"

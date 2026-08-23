@@ -15,14 +15,14 @@ You need an organisation API key (`ct_live_…` or `ct_test_…`) from **Assess 
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/praxicraft-platform/praxicraft-assess-cli/main/install.sh | sh
+curl -fsSL https://praxicraft.com/install.sh | sh
 ```
 
-The script pulls the **latest** release binary for your OS/arch and installs `praxicraft-assess` to `/usr/local/bin` (or `~/.local/bin`).
+`praxicraft.com/install.sh` redirects to this repo’s installer, which pulls the **latest** release binary for your OS/arch and installs `praxicraft-assess` to `/usr/local/bin` (or `~/.local/bin`).
 
 ```bash
 # optional custom destination
-curl -fsSL https://raw.githubusercontent.com/praxicraft-platform/praxicraft-assess-cli/main/install.sh | PRAXICRAFT_INSTALL_DIR="$HOME/bin" sh
+curl -fsSL https://praxicraft.com/install.sh | PRAXICRAFT_INSTALL_DIR="$HOME/bin" sh
 ```
 
 ### Manual download
