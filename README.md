@@ -14,7 +14,18 @@ You need an organisation API key (`ct_live_…` or `ct_test_…`) from **Assess 
 
 ## Install
 
-### From GitHub Releases
+```bash
+curl -fsSL https://raw.githubusercontent.com/praxicraft-platform/praxicraft-assess-cli/main/install.sh | sh
+```
+
+The script pulls the **latest** release binary for your OS/arch and installs `praxicraft-assess` to `/usr/local/bin` (or `~/.local/bin`).
+
+```bash
+# optional custom destination
+curl -fsSL https://raw.githubusercontent.com/praxicraft-platform/praxicraft-assess-cli/main/install.sh | PRAXICRAFT_INSTALL_DIR="$HOME/bin" sh
+```
+
+### Manual download
 
 Download a binary for your OS from [Releases](https://github.com/praxicraft-platform/praxicraft-assess-cli/releases), make it executable, and put it on your `PATH`.
 
