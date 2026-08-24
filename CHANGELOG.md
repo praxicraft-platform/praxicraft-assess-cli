@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.3
+
+- Maintenance release.
+
 ## 2.0.2
 
 - Fix Ask AI in standalone binaries: docs MCP uses HTTP (no mcp-remote / bunfs)
