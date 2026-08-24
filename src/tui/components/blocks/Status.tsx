@@ -1,3 +1,5 @@
+import { For } from "solid-js";
+import { COMMANDS } from "../../../lib/commands";
 import { colors, glyphs } from "../../theme";
 
 export const Success = (props: { message: string }) => (
@@ -36,7 +38,19 @@ export const Markdown = (props: { text: string }) => (
 );
 
 export const Help = () => (
-  <text fg={colors.textMuted}>
-    Type / for commands. Free text asks the Assess assistant. /login to authenticate.
-  </text>
+  <box flexDirection="column" gap={1} paddingTop={1} paddingBottom={1}>
+    <box flexDirection="row" alignItems="center" gap={1}>
+      <text fg={colors.brandLime}>{glyphs.arrow}</text>
+      <text fg={colors.textPrimary}>Commands</text>
+      <text fg={colors.textDim}>· free text asks Assess AI · /login to sign in</text>
+    </box>
+    <For each={COMMANDS}>
+      {(c) => (
+        <box flexDirection="row" gap={2}>
+          <text fg={colors.brandLime}>{c.command.padEnd(22)}</text>
+          <text fg={colors.textMuted}>{c.description}</text>
+        </box>
+      )}
+    </For>
+  </box>
 );

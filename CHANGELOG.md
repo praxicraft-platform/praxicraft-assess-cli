@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.2
+
+- Fix Ask AI in standalone binaries: docs MCP uses HTTP (no mcp-remote / bunfs)
+- /help renders a branded command list again
+
 ## 2.0.1
 
 - One-line PRAXICRAFT welcome mark (slick/tiny) with Assess CLI label
