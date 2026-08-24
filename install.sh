@@ -67,10 +67,23 @@ fi
 fetch() {
   url="$1"
   out="$2"
+  # Quiet fetch (API JSON, checksums). Fail on HTTP errors.
   if [ "$DOWNLOADER" = "curl" ]; then
     curl -fsSL --proto '=https' --tlsv1.2 -o "$out" "$url"
   else
     wget -q -O "$out" "$url"
+  fi
+}
+
+fetch_progress() {
+  url="$1"
+  out="$2"
+  # Binary download — show a progress bar on stderr (works with curl | sh).
+  if [ "$DOWNLOADER" = "curl" ]; then
+    # -# = progress bar; no -s so progress is visible; -f still fails on HTTP errors
+    curl -fL --proto '=https' --tlsv1.2 --progress-bar -o "$out" "$url"
+  else
+    wget --show-progress -O "$out" "$url"
   fi
 }
 
@@ -155,8 +168,9 @@ TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t praxicraft-assess-cli)
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
 info "Downloading ${DIM}${BINARY_URL}${RESET}"
-fetch "$BINARY_URL" "$TMP_DIR/$BINARY" \
+fetch_progress "$BINARY_URL" "$TMP_DIR/$BINARY" \
   || abort "failed to download $BINARY_URL"
+ok "Download complete"
 
 # ---- checksum verification ---------------------------------------------------
 
