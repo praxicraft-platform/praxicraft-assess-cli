@@ -1,13 +1,14 @@
 import { Show } from "solid-js";
 import { useTerminalDimensions } from "@opentui/solid";
-import { colors } from "../theme";
+import { colors, glyphs } from "../theme";
 import { TipLine } from "./TipLine";
 
-const WIDE_MIN = 72;
+/** slick ≈ 60 cols for PRAXICRAFT; tiny ≈ 37 for narrow panes */
+const SLICK_MIN = 68;
 
 export const Welcome = () => {
   const dims = useTerminalDimensions();
-  const wide = () => dims().width >= WIDE_MIN;
+  const useSlick = () => dims().width >= SLICK_MIN;
 
   return (
     <box
@@ -15,23 +16,46 @@ export const Welcome = () => {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      paddingTop={2}
+      paddingTop={1}
       paddingBottom={2}
     >
-      <ascii_font
-        text="PRAXI"
-        font="block"
-        color={[colors.brand, colors.brandLime]}
-        selectable={false}
-      />
-      <Show when={wide()}>
-        <ascii_font
-          text="CRAFT"
-          font="block"
-          color={[colors.brandLime, colors.brand]}
-          selectable={false}
-        />
-      </Show>
+      <box flexDirection="column" alignItems="center" flexShrink={0}>
+        <Show
+          when={useSlick()}
+          fallback={
+            <ascii_font
+              text="PRAXICRAFT"
+              font="tiny"
+              color={[colors.brand, colors.brandLime]}
+              selectable={false}
+            />
+          }
+        >
+          <ascii_font
+            text="PRAXICRAFT"
+            font="slick"
+            color={[colors.brand, colors.brandLime]}
+            selectable={false}
+          />
+        </Show>
+
+        <box
+          flexDirection="row"
+          alignItems="center"
+          justifyContent="center"
+          paddingTop={1}
+          flexShrink={0}
+        >
+          <text fg={colors.brand}>{glyphs.bullet}</text>
+          <text fg={colors.textMuted}>  Assess CLI  </text>
+          <text fg={colors.brand}>{glyphs.bullet}</text>
+        </box>
+
+        <box paddingTop={1} flexShrink={0}>
+          <text fg={colors.brandForest}>{"━".repeat(useSlick() ? 28 : 18)}</text>
+        </box>
+      </box>
+
       <box flexShrink={0} paddingTop={2}>
         <TipLine />
       </box>

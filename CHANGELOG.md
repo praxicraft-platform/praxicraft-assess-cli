@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1
+
+- One-line PRAXICRAFT welcome mark (slick/tiny) with Assess CLI label
+- Distinct input rail, tips, and footer so the TUI feels on-brand
+
 ## 2.0.0
 
 - Rewrite in Bun + TypeScript with OpenTUI interactive shell
