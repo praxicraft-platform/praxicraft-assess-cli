@@ -1,9 +1,12 @@
 # Praxicraft Assess CLI
 
-Interactive terminal UI (OpenTUI) for the [Assess Public API](https://docs.praxicraft.com) — command palette, Ask AI, and scriptable subcommands.
+Official CLI for the [Assess Public API](https://docs.praxicraft.com) — interactive TUI (Ask AI + command palette) **and** non-interactive subcommands for scripts and CI.
 
 Binary: `praxicraft-assess`  
+Package: [`@praxicraft/assess-cli`](https://www.npmjs.com/package/@praxicraft/assess-cli)  
 Repo: [praxicraft-platform/praxicraft-assess-cli](https://github.com/praxicraft-platform/praxicraft-assess-cli)
+
+![Praxicraft Assess CLI welcome screen](./docs/tui-welcome.png)
 
 ## Install
 
@@ -24,7 +27,7 @@ curl -fsSL https://praxicraft.com/install.sh | sh
 Installs the latest release binary (SHA-256 verified) as `praxicraft-assess` to `~/.local/bin` or `/usr/local/bin`.
 
 ```bash
-PRAXICRAFT_VERSION=v2.0.0 curl -fsSL https://praxicraft.com/install.sh | sh
+PRAXICRAFT_VERSION=v2.0.2 curl -fsSL https://praxicraft.com/install.sh | sh
 ```
 
 Or download `praxicraft-assess-{os}-{arch}` from [Releases](https://github.com/praxicraft-platform/praxicraft-assess-cli/releases).
@@ -43,40 +46,90 @@ Requires [Bun](https://bun.sh) ≥ 1.1.
 ## Quickstart
 
 ```bash
-praxicraft-assess configure   # or /login in the TUI
-praxicraft-assess             # interactive shell
+# One-time: save a profile (interactive prompts)
+praxicraft-assess configure
+
+# Interactive TUI
+praxicraft-assess
+
+# Non-interactive (scripts / CI)
 praxicraft-assess whoami
 praxicraft-assess assessments list
 ```
 
-Profiles: `~/.config/praxicraft/config.toml`  
-Env: `PRAXICRAFT_API_KEY`, `PRAXICRAFT_API_BASE_URL`, `PRAXICRAFT_PROFILE`
+Auth:
+
+- Profile file: `~/.config/praxicraft/config.toml`
+- Or env (preferred in CI): `PRAXICRAFT_API_KEY`, optional `PRAXICRAFT_API_BASE_URL`, `PRAXICRAFT_PROFILE`
+
+## Non-interactive (scripts & CI)
+
+Any subcommand runs **without** the TUI. JSON goes to stdout; errors to stderr with a non-zero exit code — safe for pipes and automation.
+
+```bash
+export PRAXICRAFT_API_KEY="ct_live_…"
+
+praxicraft-assess whoami
+praxicraft-assess org billing
+praxicraft-assess assessments list
+praxicraft-assess assessments get my-assessment
+praxicraft-assess invites list
+praxicraft-assess invites create my-assessment candidate@acme.com "Ada Lovelace"
+praxicraft-assess results list my-assessment
+praxicraft-assess cases list
+praxicraft-assess pipelines list
+praxicraft-assess webhooks list
+praxicraft-assess interviews list
+praxicraft-assess integrations list
+
+praxicraft-assess version
+praxicraft-assess help
+```
+
+Example in a pipeline:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+export PRAXICRAFT_API_KEY="${PRAXICRAFT_API_KEY:?missing key}"
+
+praxicraft-assess assessments list | jq '.data[] | .slug'
+```
+
+Notes:
+
+- Passing **no args** (or `interactive`) opens the TUI.
+- `configure` / `login` still use terminal prompts to save a profile; for headless auth, set `PRAXICRAFT_API_KEY` instead of calling `configure`.
+- Standalone binaries from `install.sh` run these subcommands without Bun. The interactive TUI from the npm package needs Bun.
 
 ## Interactive UI
 
-- **Brand welcome** + tip (`/login` when signed out)
-- **Ask anything…** bar — free text runs Ask AI
-- **Type `/`** for the command palette (↑↓ navigate, ↵ select, esc cancel)
-- Status: `signed out` or `live|test · profile · version`
+- **PRAXICRAFT** welcome + tip
+- **Ask Assess…** — free text runs Ask AI (Starter+, `assistant:write`)
+- **Type `/`** for the command palette (↑↓, ↵, esc)
+- Status: `signed out` or `LIVE` / test mode · key hint · version
 
 ### Ask AI
 
-Uses your Assess API key against `POST /api/v1/public/assistant/chat/` (Starter+, scope `assistant:write`) and local MCP:
+Uses `POST /api/v1/public/assistant/chat/` plus MCP tools:
 
-- Docs index: `https://docs.praxicraft.com/llms.txt` (included on each Ask AI turn)
-- Knowledge MCP: `https://docs.praxicraft.com/mcp`
-- API tools: `@praxicraft/assess-mcp` (stdio)
+- Docs: `https://docs.praxicraft.com/mcp` (HTTP)
+- Docs index: `https://docs.praxicraft.com/llms.txt`
+- Assess API tools: `@praxicraft/assess-mcp` (stdio / `npx`)
 
-## Commands
+## Commands (TUI slash ↔ CLI)
 
-| Group | Examples |
-|-------|----------|
-| Auth | `/login`, `/logout`, `configure`, `whoami` |
-| Org | `/org get`, `/org billing`, `/org stats` |
-| Assessments | `/assessments list`, `/assessments get <slug>` |
-| Invites | `/invites list`, `/invites create …` |
-| More | `/results`, `/cases`, `/pipelines`, `/webhooks`, `/interviews`, `/integrations` |
-| AI | free text or `/ai <question>` |
+| TUI | CLI equivalent |
+|-----|----------------|
+| `/login` | `praxicraft-assess configure` |
+| `/logout` | `praxicraft-assess logout` |
+| `/whoami` | `praxicraft-assess whoami` |
+| `/org get\|billing\|stats` | `praxicraft-assess org …` |
+| `/assessments list\|get` | `praxicraft-assess assessments …` |
+| `/invites …` | `praxicraft-assess invites …` |
+| `/results list` | `praxicraft-assess results list <slug>` |
+| `/cases` … `/integrations` | `praxicraft-assess <resource> list` |
+| free text / `/ai …` | (interactive only) |
 
 ## Contributing
 
