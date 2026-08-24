@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.4
+
+- Republish of Ask AI speed fix (stale v2.0.3 tag blocked release).
+
 ## 2.0.3
 
 - Ask AI: skip cold MCP for product/CLI questions (much faster)
