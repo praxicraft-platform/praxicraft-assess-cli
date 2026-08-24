@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Fetch cross-platform OpenTUI natives
+        run: bun run fetch-cross-deps
+
       - name: Build cross-platform binaries
         run: bun run build-native
 
@@ -71,7 +74,7 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    needs: binaries
+    # Independent of binaries so npm can ship even if native cross-compile fails.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,9 +90,16 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Resolve version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
       - name: Update package.json version from release tag
         env:
-          TAG_NAME: ${{ needs.binaries.outputs.tag }}
+          TAG_NAME: ${{ steps.ver.outputs.tag }}
         run: |
           echo "TAG_NAME=${TAG_NAME}"
           TAG_STRIPPED="${TAG_NAME#v}"
@@ -122,4 +132,9 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN secret is not set — cannot publish @praxicraft/assess-cli"
+            exit 1
+          fi
+          npm publish --provenance --access public

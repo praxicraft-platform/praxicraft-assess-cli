@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "bun src/index.ts",
     "build": "bun run scripts/build.ts",
+    "fetch-cross-deps": "bun run scripts/fetch-cross-deps.ts",
     "build-native": "bun run scripts/build-binaries.ts",
     "test": "bun test",
     "start": "bun src/index.ts",
