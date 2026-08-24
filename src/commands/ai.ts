@@ -227,8 +227,13 @@ export async function handleAI(query: string, ctx: CommandContext) {
     }
     const openaiTools = toolsToOpenAI(tools);
 
+    // Client system prompts are stripped by the API — include the docs index
+    // in the user turn so the model can fetch docs when needed.
     const messages: Array<Record<string, unknown>> = [
-      { role: "user", content: query },
+      {
+        role: "user",
+        content: `${query.trim()}\n\nDocs index (fetch if needed): https://docs.praxicraft.com/llms.txt`,
+      },
     ];
 
     let finalText = "";

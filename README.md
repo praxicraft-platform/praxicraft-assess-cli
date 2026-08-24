@@ -63,7 +63,8 @@ Env: `PRAXICRAFT_API_KEY`, `PRAXICRAFT_API_BASE_URL`, `PRAXICRAFT_PROFILE`
 
 Uses your Assess API key against `POST /api/v1/public/assistant/chat/` (Starter+, scope `assistant:write`) and local MCP:
 
-- Knowledge: `https://docs.praxicraft.com/mcp`
+- Docs index: `https://docs.praxicraft.com/llms.txt` (included on each Ask AI turn)
+- Knowledge MCP: `https://docs.praxicraft.com/mcp`
 - API tools: `@praxicraft/assess-mcp` (stdio)
 
 ## Commands
