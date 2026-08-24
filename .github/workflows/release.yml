@@ -4,23 +4,122 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v2.0.0)"
+        required: false
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
-  goreleaser:
+  binaries:
+    name: Build and upload release binaries
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          go-version: "1.22.x"
-      - uses: goreleaser/goreleaser-action@v6
+          bun-version: latest
+
+      - name: Resolve version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update package.json version from release tag
+        env:
+          TAG_NAME: ${{ steps.ver.outputs.tag }}
+        run: |
+          TAG_STRIPPED="${TAG_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+            pkg.version = '${TAG_STRIPPED}';
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('package.json version ->', pkg.version);
+          "
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build cross-platform binaries
+        run: bun run build-native
+
+      - name: Upload binaries to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          version: "~> v2"
-          args: release --clean
+          tag_name: ${{ steps.ver.outputs.tag }}
+          files: |
+            dist/praxicraft-assess-*
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: binaries
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Update package.json version from release tag
+        env:
+          TAG_NAME: ${{ needs.binaries.outputs.tag }}
+        run: |
+          echo "TAG_NAME=${TAG_NAME}"
+          TAG_STRIPPED="${TAG_NAME#v}"
+          echo "Updating package.json version to: ${TAG_STRIPPED}"
+
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+            pkg.version = '${TAG_STRIPPED}';
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Updated package.json version to:', pkg.version);
+          "
+
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "package.json version after update: ${PKG_VERSION}"
+          if [ "${TAG_STRIPPED}" != "${PKG_VERSION}" ]; then
+            echo "::error::Failed to update package.json version"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Test
+        run: bun test
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
