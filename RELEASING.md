@@ -1,32 +1,43 @@
 # Releasing
 
-## Automatic (preferred)
+Tag `vX.Y.Z` (or push to `main` under auto-release) — `.github/workflows/release.yml` will:
 
-Pushes to `main` that change CLI source trigger **auto-release**:
+1. Build Bun standalone binaries `praxicraft-assess-{os}-{arch}` + `SHA256SUMS.txt` and attach them to the GitHub Release (`install.sh`).
+2. Build `dist/index.js` and **publish `@praxicraft/assess-cli` to npm** (`npm publish --provenance --access public`).
 
-- Paths: `cmd/**`, `internal/**`, `go.mod`, `go.sum`, `.goreleaser.yaml`
-- Bumps the patch version (`v0.1.0` → `v0.1.1`)
-- Prepends notes to `CHANGELOG.md` from commits since the last tag
-- Updates default `Version` in `internal/cmdroot/root.go` and `cmd/praxicraft-assess/main.go`
-- Commits `chore(release): vX.Y.Z`, creates annotated tag `vX.Y.Z`, pushes
-- Runs GoReleaser and attaches binaries to the GitHub Release
+## Prerequisites (GitHub repo secrets)
 
-Skipped when the head commit message starts with `chore(release):` (avoids loops).
+| Secret | Purpose |
+|--------|---------|
+| `NPM_TOKEN` | npm automation token with publish rights on `@praxicraft` |
+| `GITHUB_TOKEN` | Provided by Actions (release assets) |
 
-To skip a release for a source change, put `[skip release]` in the commit message.
+Trusted Publishing / provenance needs `id-token: write` (already set on the release workflow).
 
-## Manual
+## Manual release
 
-1. Update `CHANGELOG.md` and default `Version` strings if needed.
+1. Bump `version` in `package.json` (optional — the workflow also sets version from the tag).
 2. Tag and push:
 
 ```bash
-git tag -a v0.1.2 -m "Release v0.1.2"
-git push origin v0.1.2
+git tag -a v2.0.1 -m "v2.0.1"
+git push origin v2.0.1
 ```
 
-3. Workflow `release.yml` runs GoReleaser on `v*` tags (also `workflow_dispatch`).
+Or use **Actions → release → Run workflow** with a tag input.
+
+## Local checks
 
 ```bash
-goreleaser release --clean
+bun install
+bun test
+bun run build          # npm package entry (dist/index.js)
+bun run build-native   # GitHub Release binaries
+```
+
+npm consumers:
+
+```bash
+npm install -g @praxicraft/assess-cli
+# requires Bun on PATH for the interactive TUI (shebang: bun)
 ```
