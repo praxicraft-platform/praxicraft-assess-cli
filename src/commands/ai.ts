@@ -1,5 +1,8 @@
 /**
  * Ask AI — tool loop against the Assess AI proxy + dual MCP (docs HTTP + Assess stdio).
+ *
+ * Speed: product/CLI questions skip MCP cold-start. Org-data questions load tools;
+ * Assess MCP via npx is soft-failed so a slow download never blocks the answer.
  */
 import { createRequire } from "node:module";
 import { createMCPClient } from "@ai-sdk/mcp";
@@ -14,11 +17,16 @@ const DOCS_MCP_URL = "https://docs.praxicraft.com/mcp";
 
 let cachedKnowledge: Awaited<ReturnType<typeof createMCPClient>> | null = null;
 let cachedExec: Awaited<ReturnType<typeof createMCPClient>> | null = null;
-let cachedTools: Record<string, any> | null = null;
 let cachedKey: string | null = null;
+let cachedDocsTools: Record<string, any> | null = null;
+let cachedOrgTools: Record<string, any> | null = null;
 
-const MAX_STEPS = 12;
-const MCP_TIMEOUT_MS = 60_000;
+const MAX_STEPS = 8;
+const DOCS_MCP_TIMEOUT_MS = 12_000;
+const ASSESS_MCP_TIMEOUT_MS = 20_000;
+const LLM_TIMEOUT_MS = 60_000;
+
+type ToolMode = "none" | "docs" | "all";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -37,6 +45,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       },
     );
   });
+}
+
+/** Skip slow MCP for product/overview questions; load tools only when useful. */
+export function selectToolMode(query: string): ToolMode {
+  const q = query.trim().toLowerCase();
+  if (!q) return "none";
+
+  const wantsOrg =
+    /\b(list|invite|create|delete|update|patch|whoami|billing|stats)\b/.test(q) ||
+    /\b(my|our)\s+(assessment|org|invite|pipeline|webhook|result|candidate)/.test(q) ||
+    /\bget\s+[a-z0-9_-]+\b/.test(q);
+
+  if (wantsOrg) return "all";
+
+  const wantsDocs =
+    /\b(api|endpoint|sdk|mcp|openapi|auth(entication)?|scope|webhook|how (do|to|does)|install|configure|docs?)\b/.test(
+      q,
+    );
+
+  if (wantsDocs) return "docs";
+  return "none";
 }
 
 function classifyError(error: any, phase: string): string {
@@ -120,7 +149,6 @@ function toolsToOpenAI(tools: Record<string, any>): Array<Record<string, unknown
   }));
 }
 
-/** True when running as install.sh / GitHub Release binary (not `bun src` / npm dist). */
 function isStandaloneBinary(): boolean {
   const path = process.execPath.replace(/\\/g, "/");
   return /praxicraft-assess(?:\.exe)?$/i.test(path) || path.includes("$bunfs");
@@ -132,8 +160,6 @@ function jsPackageRunner(): string {
 }
 
 function resolveAssessMcpSpawn(): { command: string; args: string[] } {
-  // Prefer local package when present on a real filesystem (dev / npm install).
-  // Standalone binaries cannot spawn paths inside $bunfs.
   if (!isStandaloneBinary()) {
     try {
       const entry = require.resolve("@praxicraft/assess-mcp");
@@ -148,76 +174,93 @@ function resolveAssessMcpSpawn(): { command: string; args: string[] } {
   return { command: jsPackageRunner(), args: ["-y", "@praxicraft/assess-mcp"] };
 }
 
-async function ensureClients(apiKey: string, baseURL: string) {
-  // Docs MCP: HTTP transport — works in compiled binaries (no mcp-remote / bunfs).
-  if (!cachedKnowledge) {
-    try {
+async function ensureDocsTools(): Promise<Record<string, any>> {
+  if (cachedDocsTools) return cachedDocsTools;
+  try {
+    if (!cachedKnowledge) {
       cachedKnowledge = await withTimeout(
         createMCPClient({
-          transport: {
-            type: "http",
-            url: DOCS_MCP_URL,
-          },
+          transport: { type: "http", url: DOCS_MCP_URL },
         }),
-        MCP_TIMEOUT_MS,
+        DOCS_MCP_TIMEOUT_MS,
         "docs MCP",
       );
-    } catch (e) {
-      // Soft-fail: Ask AI can still use Assess API tools without docs search.
-      console.error("[assess-cli] docs MCP unavailable:", (e as Error)?.message ?? e);
-      cachedKnowledge = null;
     }
-  }
-
-  if (!cachedExec || cachedKey !== apiKey) {
-    if (cachedExec) {
-      try {
-        await cachedExec.close();
-      } catch {
-        /* ignore */
-      }
-    }
-    const spawn = resolveAssessMcpSpawn();
-    cachedExec = await withTimeout(
-      createMCPClient({
-        transport: new StdioClientTransport({
-          command: spawn.command,
-          args: spawn.args,
-          env: {
-            ...(process.env as Record<string, string>),
-            PRAXICRAFT_API_KEY: apiKey,
-            PRAXICRAFT_API_BASE_URL: baseURL,
-          },
-          stderr: "pipe",
-        }),
-      }),
-      MCP_TIMEOUT_MS,
-      "Assess MCP",
+    cachedDocsTools = await withTimeout(
+      cachedKnowledge.tools(),
+      DOCS_MCP_TIMEOUT_MS,
+      "docs MCP tools",
     );
-    cachedKey = apiKey;
-    cachedTools = null;
+  } catch (e) {
+    console.error("[assess-cli] docs MCP unavailable:", (e as Error)?.message ?? e);
+    cachedDocsTools = {};
+  }
+  return cachedDocsTools;
+}
+
+async function ensureOrgTools(apiKey: string, baseURL: string): Promise<Record<string, any>> {
+  if (cachedOrgTools && cachedKey === apiKey) return cachedOrgTools;
+
+  if (cachedExec && cachedKey !== apiKey) {
+    try {
+      await cachedExec.close();
+    } catch {
+      /* ignore */
+    }
+    cachedExec = null;
+    cachedOrgTools = null;
   }
 
-  if (!cachedTools) {
-    const eTools = await withTimeout(cachedExec.tools(), MCP_TIMEOUT_MS, "Assess MCP tools");
-    const merged: Record<string, any> = { ...eTools };
-    if (cachedKnowledge) {
-      try {
-        const kTools = await withTimeout(
-          cachedKnowledge.tools(),
-          MCP_TIMEOUT_MS,
-          "docs MCP tools",
-        );
-        for (const [key, value] of Object.entries(kTools)) {
-          merged[merged[key] ? `knowledge_${key}` : key] = value;
-        }
-      } catch {
-        /* docs tools optional */
-      }
+  try {
+    if (!cachedExec || cachedKey !== apiKey) {
+      const spawn = resolveAssessMcpSpawn();
+      cachedExec = await withTimeout(
+        createMCPClient({
+          transport: new StdioClientTransport({
+            command: spawn.command,
+            args: spawn.args,
+            env: {
+              ...(process.env as Record<string, string>),
+              PRAXICRAFT_API_KEY: apiKey,
+              PRAXICRAFT_API_BASE_URL: baseURL,
+            },
+            stderr: "pipe",
+          }),
+        }),
+        ASSESS_MCP_TIMEOUT_MS,
+        "Assess MCP",
+      );
+      cachedKey = apiKey;
     }
-    cachedTools = merged;
+    cachedOrgTools = await withTimeout(
+      cachedExec.tools(),
+      ASSESS_MCP_TIMEOUT_MS,
+      "Assess MCP tools",
+    );
+  } catch (e) {
+    console.error("[assess-cli] Assess MCP unavailable:", (e as Error)?.message ?? e);
+    cachedOrgTools = {};
   }
-  return cachedTools;
+  return cachedOrgTools;
+}
+
+async function loadTools(
+  mode: ToolMode,
+  apiKey: string,
+  baseURL: string,
+): Promise<Record<string, any>> {
+  if (mode === "none") return {};
+
+  if (mode === "docs") {
+    return ensureDocsTools();
+  }
+
+  const [docs, org] = await Promise.all([ensureDocsTools(), ensureOrgTools(apiKey, baseURL)]);
+  const merged: Record<string, any> = { ...org };
+  for (const [key, value] of Object.entries(docs)) {
+    merged[merged[key] ? `knowledge_${key}` : key] = value;
+  }
+  return merged;
 }
 
 export async function handleAI(query: string, ctx: CommandContext) {
@@ -229,7 +272,8 @@ export async function handleAI(query: string, ctx: CommandContext) {
     return;
   }
 
-  const spinnerId = ctx.addBlock({ type: "spinner", label: "Initializing assistant…" });
+  const toolMode = selectToolMode(query);
+  const spinnerId = ctx.addBlock({ type: "spinner", label: "Thinking…" });
 
   try {
     let creds;
@@ -239,17 +283,15 @@ export async function handleAI(query: string, ctx: CommandContext) {
       throw Object.assign(new Error(classifyError(e, "Auth")), { _classified: true });
     }
 
-    ctx.updateBlock(spinnerId, { label: "Loading MCP tools…" });
-    let tools: Record<string, any>;
-    try {
-      tools = await ensureClients(creds.apiKey, creds.baseURL);
-    } catch (e: any) {
-      throw Object.assign(new Error(classifyError(e, "MCP Init")), { _classified: true });
+    let tools: Record<string, any> = {};
+    if (toolMode !== "none") {
+      ctx.updateBlock(spinnerId, {
+        label: toolMode === "docs" ? "Loading docs tools…" : "Loading MCP tools…",
+      });
+      tools = await loadTools(toolMode, creds.apiKey, creds.baseURL);
     }
-    const openaiTools = toolsToOpenAI(tools);
 
-    // Client system prompts are stripped by the API — include the docs index
-    // in the user turn so the model can fetch docs when needed.
+    const openaiTools = toolsToOpenAI(tools);
     const messages: Array<Record<string, unknown>> = [
       {
         role: "user",
@@ -268,10 +310,10 @@ export async function handleAI(query: string, ctx: CommandContext) {
         result = await withTimeout(
           assistantChat(creds, {
             messages,
-            tools: openaiTools,
+            ...(openaiTools.length ? { tools: openaiTools } : {}),
             max_tokens: 2048,
           }),
-          MCP_TIMEOUT_MS,
+          LLM_TIMEOUT_MS,
           `LLM step ${step + 1}`,
         );
       } catch (e: any) {

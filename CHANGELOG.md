@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3
+
+- Ask AI: skip cold MCP for product/CLI questions (much faster)
+- Soft-fail slow Assess MCP (`npx`); docs MCP only when needed
+- Pair with backend prompt so related product questions are not refused
+
 ## 2.0.2
 
 - Fix Ask AI in standalone binaries: docs MCP uses HTTP (no mcp-remote / bunfs)
