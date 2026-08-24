@@ -1,5 +1,5 @@
 /**
- * Ask AI — tool loop against the Assess AI proxy + dual MCP (docs + Assess).
+ * Ask AI — tool loop against the Assess AI proxy + dual MCP (docs HTTP + Assess stdio).
  */
 import { createRequire } from "node:module";
 import { createMCPClient } from "@ai-sdk/mcp";
@@ -9,6 +9,8 @@ import { ApiError, assistantChat } from "../utils/api";
 import { resolveCredentials } from "../utils/config";
 
 const require = createRequire(import.meta.url);
+
+const DOCS_MCP_URL = "https://docs.praxicraft.com/mcp";
 
 let cachedKnowledge: Awaited<ReturnType<typeof createMCPClient>> | null = null;
 let cachedExec: Awaited<ReturnType<typeof createMCPClient>> | null = null;
@@ -95,8 +97,8 @@ function classifyError(error: any, phase: string): string {
   if (/JSON|Unexpected token|parse/i.test(raw)) {
     return `The assistant returned invalid data. Try again. (${phase})`;
   }
-  if (/spawn|ENOENT|npx|bunx/i.test(raw)) {
-    return `Couldn't start MCP tools (${phase}). Ensure Node/npm (or Bun) is available, or install @praxicraft/assess-mcp.`;
+  if (/spawn|ENOENT|npx|bunx|Cannot find module/i.test(raw)) {
+    return `Couldn't start MCP tools (${phase}). Ensure Node/npm (or Bun) is on PATH, then try again.`;
   }
   if (/MCP|transport/i.test(raw)) {
     return `Communication error: ${raw.slice(0, 200)} (${phase})`;
@@ -118,41 +120,53 @@ function toolsToOpenAI(tools: Record<string, any>): Array<Record<string, unknown
   }));
 }
 
+/** True when running as install.sh / GitHub Release binary (not `bun src` / npm dist). */
+function isStandaloneBinary(): boolean {
+  const path = process.execPath.replace(/\\/g, "/");
+  return /praxicraft-assess(?:\.exe)?$/i.test(path) || path.includes("$bunfs");
+}
+
+function jsPackageRunner(): string {
+  if (!isStandaloneBinary() && process.execPath.includes("bun")) return "bunx";
+  return "npx";
+}
+
 function resolveAssessMcpSpawn(): { command: string; args: string[] } {
-  // Prefer local package when present (faster, pinned); else npx.
-  try {
-    const pkg = require.resolve("@praxicraft/assess-mcp/package.json");
-    const entry = require.resolve("@praxicraft/assess-mcp");
-    if (pkg && entry) {
-      return { command: process.execPath, args: [entry] };
+  // Prefer local package when present on a real filesystem (dev / npm install).
+  // Standalone binaries cannot spawn paths inside $bunfs.
+  if (!isStandaloneBinary()) {
+    try {
+      const entry = require.resolve("@praxicraft/assess-mcp");
+      if (entry && !entry.includes("$bunfs")) {
+        const runner = process.execPath.includes("bun") ? process.execPath : "node";
+        return { command: runner, args: [entry] };
+      }
+    } catch {
+      /* fall through */
     }
-  } catch {
-    /* fall through */
   }
-  const runner = process.execPath.includes("bun") ? "bunx" : "npx";
-  return { command: runner, args: ["-y", "@praxicraft/assess-mcp"] };
+  return { command: jsPackageRunner(), args: ["-y", "@praxicraft/assess-mcp"] };
 }
 
 async function ensureClients(apiKey: string, baseURL: string) {
+  // Docs MCP: HTTP transport — works in compiled binaries (no mcp-remote / bunfs).
   if (!cachedKnowledge) {
-    let mcpRemote: string;
     try {
-      mcpRemote = require.resolve("mcp-remote/dist/proxy.js");
-    } catch {
-      mcpRemote = require.resolve("mcp-remote");
-    }
-    cachedKnowledge = await withTimeout(
-      createMCPClient({
-        transport: new StdioClientTransport({
-          command: process.execPath,
-          args: [mcpRemote, "https://docs.praxicraft.com/mcp"],
-          env: { ...process.env } as Record<string, string>,
-          stderr: "pipe",
+      cachedKnowledge = await withTimeout(
+        createMCPClient({
+          transport: {
+            type: "http",
+            url: DOCS_MCP_URL,
+          },
         }),
-      }),
-      MCP_TIMEOUT_MS,
-      "docs MCP",
-    );
+        MCP_TIMEOUT_MS,
+        "docs MCP",
+      );
+    } catch (e) {
+      // Soft-fail: Ask AI can still use Assess API tools without docs search.
+      console.error("[assess-cli] docs MCP unavailable:", (e as Error)?.message ?? e);
+      cachedKnowledge = null;
+    }
   }
 
   if (!cachedExec || cachedKey !== apiKey) {
@@ -185,14 +199,21 @@ async function ensureClients(apiKey: string, baseURL: string) {
   }
 
   if (!cachedTools) {
-    const [kTools, eTools] = await withTimeout(
-      Promise.all([cachedKnowledge.tools(), cachedExec.tools()]),
-      MCP_TIMEOUT_MS,
-      "MCP tool discovery",
-    );
+    const eTools = await withTimeout(cachedExec.tools(), MCP_TIMEOUT_MS, "Assess MCP tools");
     const merged: Record<string, any> = { ...eTools };
-    for (const [key, value] of Object.entries(kTools)) {
-      merged[merged[key] ? `knowledge_${key}` : key] = value;
+    if (cachedKnowledge) {
+      try {
+        const kTools = await withTimeout(
+          cachedKnowledge.tools(),
+          MCP_TIMEOUT_MS,
+          "docs MCP tools",
+        );
+        for (const [key, value] of Object.entries(kTools)) {
+          merged[merged[key] ? `knowledge_${key}` : key] = value;
+        }
+      } catch {
+        /* docs tools optional */
+      }
     }
     cachedTools = merged;
   }

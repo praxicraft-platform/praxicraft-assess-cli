@@ -1,6 +1,5 @@
 import type { CommandContext } from "./CommandContext";
 import { ApiError, createClient, pathSegment } from "../utils/api";
-import { COMMANDS } from "../lib/commands";
 
 function pretty(data: unknown): string {
   return JSON.stringify(data, null, 2);
@@ -73,10 +72,7 @@ export async function handleCommand(
   const extraArgs = parts.slice(2);
 
   if (cmd === "/help") {
-    ctx.addBlock({
-      type: "text",
-      text: COMMANDS.map((c) => `${c.command.padEnd(22)} ${c.description}`).join("\n"),
-    });
+    ctx.addBlock({ type: "help" });
     return;
   }
 
