@@ -27,8 +27,8 @@ export const InputBar = (props: InputBarProps) => {
 
   return (
     <box flexDirection="row" flexShrink={0} alignItems="stretch">
-      <box width={1} flexShrink={0} backgroundColor={colors.accentSky}>
-        <text fg={colors.accentSky}> </text>
+      <box width={1} flexShrink={0} backgroundColor={colors.brand}>
+        <text fg={colors.brand}> </text>
       </box>
       <box
         flexDirection="column"
@@ -37,7 +37,7 @@ export const InputBar = (props: InputBarProps) => {
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
-        backgroundColor={colors.brandBlack}
+        backgroundColor={colors.surfaceDeep}
       >
         <box flexDirection="row" flexShrink={0}>
           <input
@@ -46,7 +46,7 @@ export const InputBar = (props: InputBarProps) => {
             value={props.value ?? ""}
             placeholder={
               props.placeholder ??
-              `Ask anything... ${glyphs.separator} type / for commands`
+              `Ask Assess… ${glyphs.separator} type / for commands`
             }
             onInput={handleInput as any}
             onSubmit={handleSubmit as any}
@@ -54,7 +54,9 @@ export const InputBar = (props: InputBarProps) => {
         </box>
         <box height={1} flexShrink={0} />
         <box flexDirection="row" flexShrink={0}>
-          <text fg={colors.accentLime}>praxicraft-assess</text>
+          <text fg={colors.brand}>praxicraft</text>
+          <text fg={colors.textDim}>/</text>
+          <text fg={colors.brandLime}>assess</text>
           <text fg={colors.textDim}>{` ${glyphs.separator} `}</text>
           <Show
             when={authInfo()}
@@ -69,7 +71,7 @@ export const InputBar = (props: InputBarProps) => {
             {(info: () => NonNullable<AuthInfo>) => (
               <>
                 <text fg={info().mode === "test_mode" ? colors.testMode : colors.liveMode}>
-                  {info().mode === "test_mode" ? "TEST MODE" : "LIVE MODE"}
+                  {info().mode === "test_mode" ? "TEST" : "LIVE"}
                 </text>
                 <text fg={colors.textDim}>{` ${glyphs.separator} `}</text>
                 <text fg={colors.textMuted}>{info().key}</text>

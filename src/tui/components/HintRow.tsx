@@ -30,14 +30,14 @@ export const HintRow = () => {
   };
 
   return (
-    <box flexDirection="row" justifyContent="flex-end" paddingRight={2} flexShrink={0}>
+    <box flexDirection="row" justifyContent="flex-end" paddingRight={2} paddingTop={1} flexShrink={0}>
       <For each={hints()}>
         {(h, i) => (
           <box flexDirection="row">
             <Show when={i() > 0}>
-              <text fg={colors.textDim}>{"   "}</text>
+              <text fg={colors.textDim}>{"  ·  "}</text>
             </Show>
-            <text fg={colors.textPrimary}>{h.key}</text>
+            <text fg={colors.brandLime}>{h.key}</text>
             <text fg={colors.textDim}>{` ${h.label}`}</text>
           </box>
         )}
