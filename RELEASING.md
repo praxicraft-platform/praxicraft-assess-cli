@@ -41,3 +41,11 @@ npm consumers:
 npm install -g @praxicraft/assess-cli
 # requires Bun on PATH for the interactive TUI (shebang: bun)
 ```
+
+## Auto-bump
+
+Pushes to `main` that change package source auto-bump the patch version and `CHANGELOG.md` in the runner, create a local `chore(release)` commit, and **push only the annotated tag** (not `main` — branch protection requires PRs). The tag retains the release commit. Then CI creates a **GitHub Release** and publishes to the language registry when credentials are configured.
+
+Version files on `main` may lag until a follow-up PR syncs them; published artifacts always use the tagged version.
+
+Skip with `[skip release]` in the commit message.

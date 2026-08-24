@@ -1,7 +1,8 @@
 name: auto-release
 
-# When CLI source changes land on main, bump patch version in package.json,
-# update CHANGELOG.md, tag, and trigger the release workflow via the tag push.
+# When CLI source changes land on main, bump version + CHANGELOG in a local
+# release commit, push only the tag (not main — branch protection requires PRs),
+# and trigger release.yml via the tag push.
 on:
   push:
     branches: [main]
@@ -95,7 +96,8 @@ jobs:
             echo "Nothing to commit"
             exit 0
           fi
+          # Local commit only — do not push to main (rules require PRs).
+          # Pushing the annotated tag keeps this release commit reachable.
           git commit -m "chore(release): ${NEXT}"
           git tag -a "${NEXT}" -m "Release ${NEXT}"
-          git push origin HEAD:main
           git push origin "${NEXT}"
