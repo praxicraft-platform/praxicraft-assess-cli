@@ -108,4 +108,16 @@ describe("formatOutput table", () => {
     expect(text).toContain("550e8400");
     expect(text).not.toContain("550e8400-e29b-41d4-a716-446655440000");
   });
+
+  test("shows pagination hint when next page exists", () => {
+    const text = formatOutput(
+      {
+        next: "https://example.com/assessments/?cursor=abc",
+        results: [{ slug: "one", status: "active" }],
+      },
+      "table",
+    );
+    expect(text).toContain("--all");
+    expect(text).not.toContain("https://example.com");
+  });
 });

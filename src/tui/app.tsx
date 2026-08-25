@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onMount, untrack } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { render, useKeyboard, useRenderer, useSelectionHandler } from "@opentui/solid";
 import { ToastViewport } from "./components/Toast";
 import { showToast } from "./toast";
@@ -14,7 +14,7 @@ import { TuiContextProvider, type AuthInfo } from "./context";
 import { createMessageStore } from "./CommandContext";
 import { handleCommand } from "./router";
 import { resolveCredentials } from "../utils/config";
-import { checkForUpdate } from "../utils/version-check";
+import { startBackgroundUpdateCheck } from "../utils/version-check";
 
 const App = () => {
   const [authInfo, setAuthInfo] = createSignal<AuthInfo>(null);
@@ -56,9 +56,10 @@ const App = () => {
 
   onMount(() => {
     refreshAuthInfo();
-    void checkForUpdate().then((result) => {
-      if (result) setUpdateAvailable(result.latest);
+    const stopUpdateCheck = startBackgroundUpdateCheck((latest) => {
+      setUpdateAvailable(latest);
     });
+    onCleanup(stopUpdateCheck);
   });
 
   const onInputChange = (next: string) => {

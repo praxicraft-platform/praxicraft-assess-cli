@@ -44,8 +44,6 @@ npm install -g @praxicraft/assess-cli
 
 ## Auto-bump
 
-Pushes to `main` that change package source auto-bump the patch version and `CHANGELOG.md` in the runner, create a local `chore(release)` commit, and **push only the annotated tag** (not `main` — branch protection requires PRs). The tag retains the release commit. Then CI creates a **GitHub Release** and publishes to the language registry when credentials are configured.
-
-Version files on `main` may lag until a follow-up PR syncs them; published artifacts always use the tagged version.
+Pushes to `main` that change package source auto-bump the patch version and `CHANGELOG.md` in the runner, create a local `chore(release)` commit, and **push only the annotated tag** (not `main` — branch protection requires PRs). The tag retains the release commit. CI then **dispatches `release.yml`** (tag pushes from `GITHUB_TOKEN` do not trigger workflows) and opens a **sync PR** so `package.json` and `CHANGELOG.md` on `main` match the release.
 
 Skip with `[skip release]` in the commit message.

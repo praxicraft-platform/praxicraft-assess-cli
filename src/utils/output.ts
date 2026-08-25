@@ -141,9 +141,13 @@ function formatTable(data: unknown): string {
     const record = payload as Record<string, unknown>;
     const envelope = extractListEnvelope(record);
     if (envelope) {
-      const lines = [formatRows(envelope.rows)];
-      if (Object.keys(envelope.rest).length > 0) {
-        lines.push("", "—", formatObject(envelope.rest));
+      const table = formatRows(envelope.rows);
+      const lines = [table];
+      const paginationHint = formatPaginationHint(envelope.rows.length, envelope.rest);
+      if (paginationHint) lines.push(paginationHint);
+      const metaLines = formatListMeta(envelope.rest);
+      if (metaLines) {
+        lines.push("", "—", metaLines);
       }
       return lines.join("\n");
     }
@@ -151,6 +155,28 @@ function formatTable(data: unknown): string {
   }
 
   return JSON.stringify(payload, null, 2);
+}
+
+function hasNextPage(rest: Record<string, unknown>): boolean {
+  const next = rest.next;
+  return typeof next === "string" ? next.trim().length > 0 : next != null && next !== false;
+}
+
+function formatPaginationHint(rowCount: number, rest: Record<string, unknown>): string | null {
+  if (!hasNextPage(rest)) return null;
+  const noun = rowCount === 1 ? "row" : "rows";
+  return `\n(${rowCount} ${noun} on this page · more available — re-run with --all)`;
+}
+
+/** Show summary/meta below the table; omit raw next/previous URLs. */
+function formatListMeta(rest: Record<string, unknown>): string | null {
+  const meta: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    if (key === "next" || key === "previous") continue;
+    if (isScalar(value)) meta[key] = value;
+  }
+  if (Object.keys(meta).length === 0) return null;
+  return formatObject(meta);
 }
 
 function extractListEnvelope(

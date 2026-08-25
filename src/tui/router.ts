@@ -1,6 +1,15 @@
 import type { CommandContext } from "./CommandContext";
-import { ApiError, createClient, pathSegment } from "../utils/api";
+import { ApiError, createClient, pathSegment, type Client } from "../utils/api";
 import { extractOrgName, formatOutput } from "../utils/output";
+import { fetchList, stripAllFlag } from "../utils/paginate";
+
+async function fetchListPath(client: Client, path: string, args: string[]) {
+  const { args: rest, all } = stripAllFlag(args);
+  if (rest.length > 0) {
+    throw new Error("--all does not take extra arguments.");
+  }
+  return fetchList((query) => client.get(path, query), { all });
+}
 
 function showApiResult(ctx: CommandContext, data: unknown, opts?: { whoami?: boolean }) {
   if (opts?.whoami) {
@@ -154,7 +163,7 @@ export async function handleCommand(
     }
 
     if (cmd === "/assessments" && subCmd === "list") {
-      const data = await client.get("/assessments/");
+      const data = await fetchListPath(client, "/assessments/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
@@ -176,7 +185,7 @@ export async function handleCommand(
     }
 
     if (cmd === "/invites" && subCmd === "list") {
-      const data = await client.get("/invites/");
+      const data = await fetchListPath(client, "/invites/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
@@ -207,8 +216,11 @@ export async function handleCommand(
     }
 
     if (cmd === "/results" && subCmd === "list") {
-      const slug = pathSegment(extraArgs[0] || (await ctx.promptInput("Assessment slug")));
-      const data = await client.get(`/assessments/${slug}/results/`);
+      const { args: slugArgs, all } = stripAllFlag(extraArgs);
+      const slug = pathSegment(slugArgs[0] || (await ctx.promptInput("Assessment slug")));
+      const data = await fetchList((query) => client.get(`/assessments/${slug}/results/`, query), {
+        all,
+      });
       showApiResult(ctx, data);
       return;
     }
@@ -219,31 +231,31 @@ export async function handleCommand(
     }
 
     if (cmd === "/cases" && subCmd === "list") {
-      const data = await client.get("/cases/");
+      const data = await fetchListPath(client, "/cases/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/pipelines" && subCmd === "list") {
-      const data = await client.get("/pipelines/");
+      const data = await fetchListPath(client, "/pipelines/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/webhooks" && subCmd === "list") {
-      const data = await client.get("/webhooks/");
+      const data = await fetchListPath(client, "/webhooks/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/interviews" && subCmd === "list") {
-      const data = await client.get("/interviews/");
+      const data = await fetchListPath(client, "/interviews/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/integrations" && subCmd === "list") {
-      const data = await client.get("/integrations/");
+      const data = await fetchListPath(client, "/integrations/", extraArgs);
       showApiResult(ctx, data);
       return;
     }
