@@ -4,7 +4,7 @@ import { colors, glyphs } from "../theme";
 
 const variantColor = {
   success: colors.success,
-  info: colors.info,
+  info: colors.brandLime,
   error: colors.error,
 } as const;
 

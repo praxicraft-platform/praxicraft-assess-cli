@@ -14,7 +14,7 @@ import { TuiContextProvider, type AuthInfo } from "./context";
 import { createMessageStore } from "./CommandContext";
 import { handleCommand } from "./router";
 import { resolveCredentials } from "../utils/config";
-import { checkForUpdate, formatUpdateNotice } from "../utils/version-check";
+import { checkForUpdate } from "../utils/version-check";
 
 const App = () => {
   const [authInfo, setAuthInfo] = createSignal<AuthInfo>(null);
@@ -229,12 +229,6 @@ export async function startTui() {
   // Restore terminal state on any exit, including OpenTUI's own Ctrl+C handler
   process.on("exit", () => {
     process.stdout.write("\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?25h");
-  });
-
-  void checkForUpdate().then((result) => {
-    if (result) {
-      process.stderr.write(`\n${formatUpdateNotice(result)}\n\n`);
-    }
   });
 
   render(() => <App />, { exitOnCtrlC: true, targetFps: 30, useMouse: true });

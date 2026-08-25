@@ -24,7 +24,7 @@ export const Error = (props: { message: string }) => (
 
 export const Info = (props: { message: string }) => (
   <box flexDirection="row">
-    <text fg={colors.info}>{`${glyphs.bullet} `}</text>
+    <text fg={colors.brandLime}>{`${glyphs.bullet} `}</text>
     <text fg={colors.textPrimary}>{props.message}</text>
   </box>
 );
