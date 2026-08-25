@@ -103,12 +103,16 @@ describe("palette ranking", () => {
 
 describe("Ask AI tool mode", () => {
   test("skips MCP for product questions; loads tools when needed", async () => {
-    const { selectToolMode } = await import("../src/commands/ai");
+    const { selectToolMode, looksLikeStall } = await import("../src/commands/ai");
     expect(selectToolMode("what is praxicraft")).toBe("none");
     expect(selectToolMode("the assess cli")).toBe("none");
+    expect(selectToolMode("which sdks are available to use?")).toBe("none");
+    expect(selectToolMode("what can u do?")).toBe("none");
     expect(selectToolMode("how do I install the CLI")).toBe("docs");
     expect(selectToolMode("explain webhooks auth")).toBe("docs");
     expect(selectToolMode("list assessments")).toBe("all");
     expect(selectToolMode("list webhooks")).toBe("all");
+    expect(looksLikeStall("Please hold on for a moment.")).toBe(true);
+    expect(looksLikeStall("Python, Node, Go, and Ruby SDKs are available.")).toBe(false);
   });
 });

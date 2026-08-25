@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.5
+
+- Fix Ask AI stalling on “I’ll fetch docs…” (nudge + answer SDK catalog without MCP)
+- Timeout individual tool executes so docs MCP cannot hang the TUI
+
 ## 2.0.4
 
 - Republish of Ask AI speed fix (stale v2.0.3 tag blocked release).
