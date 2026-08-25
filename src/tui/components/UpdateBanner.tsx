@@ -14,6 +14,7 @@ export const UpdateBanner = (props: Props) => (
         flexDirection="row"
         marginLeft={2}
         marginRight={2}
+        marginTop={1}
         marginBottom={1}
         paddingLeft={1}
         paddingRight={1}
