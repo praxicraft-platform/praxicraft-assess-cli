@@ -226,15 +226,70 @@ fi
 
 ok "Installed ${BOLD}${CMD_NAME}${RESET} to ${BOLD}$TARGET${RESET}"
 
-case ":$PATH:" in
-  *":$INSTALL_DIR:"*) ;;
-  *)
-    warn "$INSTALL_DIR is not on your PATH"
-    printf "    Add it with one of:\n"
-    printf "      echo 'export PATH=\"%s:\$PATH\"' >> ~/.bashrc\n" "$INSTALL_DIR"
-    printf "      echo 'export PATH=\"%s:\$PATH\"' >> ~/.zshrc\n" "$INSTALL_DIR"
-    ;;
-esac
+# ---- PATH -------------------------------------------------------------------
+
+# Prefer the user's login shell ($SHELL). When piped via `curl | sh`, $0 is sh.
+detect_profile() {
+  shell_name=$(basename "${SHELL:-}")
+  case "$shell_name" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    bash)
+      if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ -f "$HOME/.bash_profile" ]; then
+        echo "$HOME/.bash_profile"
+      else
+        echo "$HOME/.bashrc"
+      fi
+      ;;
+    fish) echo "$HOME/.config/fish/config.fish" ;;
+    *)
+      if [ -n "${ZSH_VERSION:-}" ]; then echo "$HOME/.zshrc"
+      elif [ -n "${BASH_VERSION:-}" ]; then echo "$HOME/.bashrc"
+      else echo "$HOME/.profile"
+      fi
+      ;;
+  esac
+}
+
+path_line_sh() {
+  # Use $HOME so the line stays portable if the home path changes.
+  case "$INSTALL_DIR" in
+    "$HOME"/*) printf 'export PATH="$HOME/%s:$PATH"' "${INSTALL_DIR#"$HOME"/}" ;;
+    *)         printf 'export PATH="%s:$PATH"' "$INSTALL_DIR" ;;
+  esac
+}
+
+ensure_path() {
+  case ":$PATH:" in
+    *":$INSTALL_DIR:"*) return 0 ;;
+  esac
+
+  profile=$(detect_profile)
+  mkdir -p "$(dirname "$profile")" 2>/dev/null || true
+
+  if [ "$(basename "$profile")" = "config.fish" ]; then
+    case "$INSTALL_DIR" in
+      "$HOME"/*) fish_line="fish_add_path \$HOME/${INSTALL_DIR#"$HOME"/}" ;;
+      *)         fish_line="fish_add_path $INSTALL_DIR" ;;
+    esac
+    if [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; then
+      warn "$INSTALL_DIR is not on PATH in this shell; already configured in $profile — open a new terminal"
+      return 0
+    fi
+    printf '\n# Praxicraft Assess CLI\n%s\n' "$fish_line" >> "$profile"
+  else
+    line=$(path_line_sh)
+    if [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; then
+      warn "$INSTALL_DIR is not on PATH in this shell; already configured in $profile — run: source $profile"
+      return 0
+    fi
+    printf '\n# Praxicraft Assess CLI\n%s\n' "$line" >> "$profile"
+  fi
+
+  ok "Added ${BOLD}$INSTALL_DIR${RESET} to PATH in ${BOLD}$profile${RESET}"
+  printf "    Reload with: ${BOLD}source %s${RESET}   (or open a new terminal)\n" "$profile"
+}
+
+ensure_path
 
 printf "\n"
 ok "Done. Get started:"
