@@ -57,14 +57,14 @@ describe("checkForUpdate", () => {
         return { ok: true, json: async () => ({ version: "2.0.5" }) } as Response;
       }
       if (href.includes("api.github.com")) {
-        return { ok: true, json: async () => ({ tag_name: "v2.0.8" }) } as Response;
+        return { ok: true, json: async () => ({ tag_name: "v99.0.0" }) } as Response;
       }
       return { ok: false, json: async () => ({}) } as Response;
     };
 
     await expect(checkForUpdate(fetchImpl)).resolves.toEqual({
       current: expect.any(String),
-      latest: "2.0.8",
+      latest: "99.0.0",
     });
   });
 
