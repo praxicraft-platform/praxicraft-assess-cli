@@ -201,16 +201,22 @@ function formatObject(record: Record<string, unknown>): string {
   if (Object.keys(record).length === 0) return "(empty)";
 
   const keys = orderedKeys(record, OBJECT_KEY_ORDER);
+  const keyWidth = Math.max(...keys.map((key) => key.length), 4);
   const lines: string[] = [];
 
   for (const key of keys) {
     const value = record[key];
     if (isScalar(value)) {
-      lines.push(`${key.padEnd(18)} ${formatObjectValue(key, value)}`);
+      lines.push(`${key.padEnd(keyWidth)}  ${formatObjectValue(key, value)}`);
       continue;
     }
     lines.push(`${key}`);
-    lines.push(JSON.stringify(value, null, 2).split("\n").map((l) => `  ${l}`).join("\n"));
+    lines.push(
+      JSON.stringify(value, null, 2)
+        .split("\n")
+        .map((line) => `${" ".repeat(keyWidth + 2)}${line}`)
+        .join("\n"),
+    );
   }
 
   return lines.join("\n");
@@ -277,18 +283,28 @@ function orderedKeys(record: Record<string, unknown>, preferred: string[]): stri
 
 function renderTable(rows: string[][]): string {
   if (rows.length === 0) return "";
-  const widths = rows[0]!.map((_, col) =>
-    Math.max(...rows.map((row) => visibleLength(row[col] ?? ""))),
+
+  const colCount = Math.max(...rows.map((row) => row.length), 0);
+  const widths = Array.from({ length: colCount }, (_, col) =>
+    Math.max(...rows.map((row) => visibleLength(row[col] ?? "")), 3),
   );
+  const gap = "    "; // 4-space gutter (matches legacy tabwriter)
+
   return rows
-    .map((row, rowIndex) =>
-      row
-        .map((cell, col) => {
-          const padded = padVisible(cell ?? "", widths[col]!);
-          return rowIndex === 0 ? padded : padded;
-        })
-        .join("  "),
+    .map((row) =>
+      Array.from({ length: colCount }, (_, col) => padVisible(row[col] ?? "", widths[col]!)).join(
+        gap,
+      ),
     )
+    .join("\n");
+}
+
+/** Prefix each line — used by the TUI so tables align with command output. */
+export function indentLines(text: string, spaces = 2): string {
+  const pad = " ".repeat(spaces);
+  return text
+    .split("\n")
+    .map((line) => (line.length > 0 ? `${pad}${line}` : line))
     .join("\n");
 }
 

@@ -30,7 +30,9 @@ export const Info = (props: { message: string }) => (
 );
 
 export const TextBlock = (props: { text: string }) => (
-  <text fg={colors.textPrimary}>{props.text}</text>
+  <box flexDirection="column" paddingLeft={2} paddingTop={0} paddingBottom={1}>
+    <text fg={colors.textPrimary}>{props.text}</text>
+  </box>
 );
 
 export const Markdown = (props: { text: string }) => (
