@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.7
+
+- fix: update banner checks GitHub releases and shows at top (#17)
+- feat: show update banner in TUI when a newer CLI is on npm (#16)
+
 ## 2.0.6
 
 - Ask AI: plain TUI prose (strip Markdown), direct docs URLs — never show llms.txt to users
