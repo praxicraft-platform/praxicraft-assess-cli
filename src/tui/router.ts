@@ -1,8 +1,13 @@
 import type { CommandContext } from "./CommandContext";
 import { ApiError, createClient, pathSegment } from "../utils/api";
+import { extractOrgName, formatOutput } from "../utils/output";
 
-function pretty(data: unknown): string {
-  return JSON.stringify(data, null, 2);
+function showApiResult(ctx: CommandContext, data: unknown, opts?: { whoami?: boolean }) {
+  if (opts?.whoami) {
+    ctx.addBlock({ type: "text", text: extractOrgName(data) });
+    return;
+  }
+  ctx.addBlock({ type: "text", text: formatOutput(data, "table") });
 }
 
 const API_ROOTS = new Set([
@@ -116,21 +121,27 @@ export async function handleCommand(
   try {
     const client = createClient();
 
-    if (cmd === "/whoami" || (cmd === "/org" && (!subCmd || subCmd === "get"))) {
+    if (cmd === "/whoami") {
       const data = await client.get("/org/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data, { whoami: true });
+      return;
+    }
+
+    if (cmd === "/org" && (!subCmd || subCmd === "get")) {
+      const data = await client.get("/org/");
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/org" && subCmd === "billing") {
       const data = await client.get("/org/billing/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/org" && subCmd === "stats") {
       const data = await client.get("/org/stats/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -144,7 +155,7 @@ export async function handleCommand(
 
     if (cmd === "/assessments" && subCmd === "list") {
       const data = await client.get("/assessments/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -152,7 +163,7 @@ export async function handleCommand(
       const raw = extraArgs[0] || (await ctx.promptInput("Assessment slug"));
       const slug = pathSegment(raw);
       const data = await client.get(`/assessments/${slug}/`);
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -166,7 +177,7 @@ export async function handleCommand(
 
     if (cmd === "/invites" && subCmd === "list") {
       const data = await client.get("/invites/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -183,7 +194,7 @@ export async function handleCommand(
         name: name || email,
       });
       ctx.addBlock({ type: "success", message: "Invite created" });
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -198,7 +209,7 @@ export async function handleCommand(
     if (cmd === "/results" && subCmd === "list") {
       const slug = pathSegment(extraArgs[0] || (await ctx.promptInput("Assessment slug")));
       const data = await client.get(`/assessments/${slug}/results/`);
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
@@ -209,31 +220,31 @@ export async function handleCommand(
 
     if (cmd === "/cases" && subCmd === "list") {
       const data = await client.get("/cases/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/pipelines" && subCmd === "list") {
       const data = await client.get("/pipelines/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/webhooks" && subCmd === "list") {
       const data = await client.get("/webhooks/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/interviews" && subCmd === "list") {
       const data = await client.get("/interviews/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 
     if (cmd === "/integrations" && subCmd === "list") {
       const data = await client.get("/integrations/");
-      ctx.addBlock({ type: "markdown", text: pretty(data) });
+      showApiResult(ctx, data);
       return;
     }
 

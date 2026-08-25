@@ -11,8 +11,24 @@ import {
   saveProfile,
   DefaultBaseURL,
 } from "./utils/config";
+import {
+  defaultCliFormat,
+  extractOrgName,
+  formatOutput,
+  parseOutputFlag,
+} from "./utils/output";
 
-const args = process.argv.slice(2);
+const parsed = parseOutputFlag(process.argv.slice(2));
+const args = parsed.args;
+const cliOutputFormat = parsed.format ?? defaultCliFormat();
+
+function printApiData(data: unknown, opts?: { whoami?: boolean }) {
+  if (opts?.whoami) {
+    console.log(extractOrgName(data));
+    return;
+  }
+  console.log(formatOutput(data, cliOutputFormat));
+}
 
 function printHelp() {
   console.log(`praxicraft-assess v${version}
@@ -28,6 +44,8 @@ Usage:
   praxicraft-assess invites list|create <slug> <email> <name>
   praxicraft-assess results list <slug>
   praxicraft-assess cases|pipelines|webhooks|interviews|integrations list
+
+Output: table in terminal (default), JSON when piped. Override with --output json|table
 
 Env: PRAXICRAFT_API_KEY, PRAXICRAFT_API_BASE_URL, PRAXICRAFT_PROFILE
 Config: ~/.config/praxicraft/config.toml
@@ -129,7 +147,7 @@ async function runCli(): Promise<void> {
   try {
     if (cmd === "whoami") {
       const client = createClient();
-      console.log(JSON.stringify(await client.get("/org/"), null, 2));
+      printApiData(await client.get("/org/"), { whoami: true });
       return;
     }
 
@@ -141,7 +159,7 @@ async function runCli(): Promise<void> {
       }
       const path =
         sub === "billing" ? "/org/billing/" : sub === "stats" ? "/org/stats/" : "/org/";
-      console.log(JSON.stringify(await client.get(path), null, 2));
+      printApiData(await client.get(path));
       return;
     }
 
@@ -149,13 +167,13 @@ async function runCli(): Promise<void> {
       const client = createClient();
       const sub = args[1];
       if (sub === "list") {
-        console.log(JSON.stringify(await client.get("/assessments/"), null, 2));
+        printApiData(await client.get("/assessments/"));
         return;
       }
       if (sub === "get") {
         const { pathSegment } = await import("./utils/api");
         const slug = pathSegment(args[2] || "");
-        console.log(JSON.stringify(await client.get(`/assessments/${slug}/`), null, 2));
+        printApiData(await client.get(`/assessments/${slug}/`));
         return;
       }
       throw new Error("usage: assessments list|get <slug>");
@@ -165,7 +183,7 @@ async function runCli(): Promise<void> {
       const client = createClient();
       const sub = args[1];
       if (sub === "list") {
-        console.log(JSON.stringify(await client.get("/invites/"), null, 2));
+        printApiData(await client.get("/invites/"));
         return;
       }
       if (sub === "create") {
@@ -174,15 +192,11 @@ async function runCli(): Promise<void> {
         if (!slugArg || !email) throw new Error("usage: invites create <slug> <email> [name]");
         if (!email.includes("@")) throw new Error("a valid candidate email is required");
         const slug = pathSegment(slugArg);
-        console.log(
-          JSON.stringify(
-            await client.post(`/assessments/${slug}/invites/`, {
-              email,
-              name: name || email,
-            }),
-            null,
-            2,
-          ),
+        printApiData(
+          await client.post(`/assessments/${slug}/invites/`, {
+            email,
+            name: name || email,
+          }),
         );
         return;
       }
@@ -202,16 +216,14 @@ async function runCli(): Promise<void> {
       const { pathSegment } = await import("./utils/api");
       const slug = pathSegment(args[2] || "");
       const client = createClient();
-      console.log(
-        JSON.stringify(await client.get(`/assessments/${slug}/results/`), null, 2),
-      );
+      printApiData(await client.get(`/assessments/${slug}/results/`));
       return;
     }
 
     if (cmd in listMap) {
       if (args[1] !== "list") throw new Error(`usage: ${cmd} list`);
       const client = createClient();
-      console.log(JSON.stringify(await client.get(listMap[cmd]!), null, 2));
+      printApiData(await client.get(listMap[cmd]!));
       return;
     }
 
