@@ -7,12 +7,14 @@ import { Welcome } from "./components/Welcome";
 import { InputBar } from "./components/InputBar";
 import { HintRow } from "./components/HintRow";
 import { Footer } from "./components/Footer";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { MessageRow } from "./components/MessageRow";
 import { Palette, rankCommands } from "./components/Palette";
 import { TuiContextProvider, type AuthInfo } from "./context";
 import { createMessageStore } from "./CommandContext";
 import { handleCommand } from "./router";
 import { resolveCredentials } from "../utils/config";
+import { checkForUpdate } from "../utils/version-check";
 
 const App = () => {
   const [authInfo, setAuthInfo] = createSignal<AuthInfo>(null);
@@ -22,6 +24,7 @@ const App = () => {
   const [history, setHistory] = createSignal<string[]>([]);
   const [historyIndex, setHistoryIndex] = createSignal(-1);
   const [isProcessing, setIsProcessing] = createSignal(false);
+  const [updateAvailable, setUpdateAvailable] = createSignal<string | null>(null);
   const [promptActive, setPromptActive] = createSignal(false);
   const [lastEscape, setLastEscape] = createSignal(0);
 
@@ -53,6 +56,9 @@ const App = () => {
 
   onMount(() => {
     refreshAuthInfo();
+    void checkForUpdate().then((result) => {
+      if (result) setUpdateAvailable(result.latest);
+    });
   });
 
   const onInputChange = (next: string) => {
@@ -205,6 +211,7 @@ const App = () => {
         <box flexShrink={0} flexDirection="column" paddingLeft={2} paddingRight={2}>
           <InputBar onSubmit={onSubmit} onInput={onInputChange} value={input()} />
           <HintRow />
+          <UpdateBanner latestVersion={updateAvailable()} />
         </box>
         <Footer />
         <Palette
