@@ -44,6 +44,12 @@ jobs:
           PATCH="${PATCH:-0}"
           PATCH=$((PATCH + 1))
           NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          # Skip tags that already exist (rerun, race, or orphaned release commit).
+          while git rev-parse "refs/tags/${NEXT}" >/dev/null 2>&1; do
+            PATCH=$((PATCH + 1))
+            NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          done
+          VERSION="${NEXT#v}"
           NOTES="$(git log "${LATEST}..HEAD" --pretty=format:'- %s' --no-merges | sed '/^chore(release):/d' || true)"
           if [ -z "$NOTES" ]; then
             NOTES="- Maintenance release."
@@ -51,7 +57,7 @@ jobs:
           {
             echo "latest=${LATEST}"
             echo "next=${NEXT}"
-            echo "version=${NEXT#v}"
+            echo "version=${VERSION}"
           } >> "$GITHUB_OUTPUT"
           {
             echo "NOTES<<EOF"
@@ -99,5 +105,9 @@ jobs:
           # Local commit only — do not push to main (rules require PRs).
           # Pushing the annotated tag keeps this release commit reachable.
           git commit -m "chore(release): ${NEXT}"
+          if git rev-parse "refs/tags/${NEXT}" >/dev/null 2>&1; then
+            echo "Tag ${NEXT} already exists — skipping push"
+            exit 0
+          fi
           git tag -a "${NEXT}" -m "Release ${NEXT}"
           git push origin "${NEXT}"
