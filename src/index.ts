@@ -17,6 +17,7 @@ import {
   formatOutput,
   parseOutputFlag,
 } from "./utils/output";
+import { fetchList, stripAllFlag } from "./utils/paginate";
 
 const parsed = parseOutputFlag(process.argv.slice(2));
 const args = parsed.args;
@@ -43,9 +44,10 @@ Usage:
   praxicraft-assess assessments list|get <slug>
   praxicraft-assess invites list|create <slug> <email> <name>
   praxicraft-assess results list <slug>
-  praxicraft-assess cases|pipelines|webhooks|interviews|integrations list
+  praxicraft-assess cases|pipelines|webhooks|interviews|integrations list [--all]
 
 Output: table in terminal (default), JSON when piped. Override with --output json|table
+List commands: pass --all to follow cursor pagination and merge every page into one table
 
 Env: PRAXICRAFT_API_KEY, PRAXICRAFT_API_BASE_URL, PRAXICRAFT_PROFILE
 Config: ~/.config/praxicraft/config.toml
@@ -167,7 +169,8 @@ async function runCli(): Promise<void> {
       const client = createClient();
       const sub = args[1];
       if (sub === "list") {
-        printApiData(await client.get("/assessments/"));
+        const { all } = stripAllFlag(args.slice(2));
+        printApiData(await fetchList((query) => client.get("/assessments/", query), { all }));
         return;
       }
       if (sub === "get") {
@@ -183,7 +186,8 @@ async function runCli(): Promise<void> {
       const client = createClient();
       const sub = args[1];
       if (sub === "list") {
-        printApiData(await client.get("/invites/"));
+        const { all } = stripAllFlag(args.slice(2));
+        printApiData(await fetchList((query) => client.get("/invites/", query), { all }));
         return;
       }
       if (sub === "create") {
@@ -212,18 +216,22 @@ async function runCli(): Promise<void> {
     };
 
     if (cmd === "results") {
-      if (args[1] !== "list") throw new Error("usage: results list <slug>");
+      if (args[1] !== "list") throw new Error("usage: results list <slug> [--all]");
       const { pathSegment } = await import("./utils/api");
-      const slug = pathSegment(args[2] || "");
+      const { args: slugArgs, all } = stripAllFlag(args.slice(2));
+      const slug = pathSegment(slugArgs[0] || "");
       const client = createClient();
-      printApiData(await client.get(`/assessments/${slug}/results/`));
+      printApiData(
+        await fetchList((query) => client.get(`/assessments/${slug}/results/`, query), { all }),
+      );
       return;
     }
 
     if (cmd in listMap) {
-      if (args[1] !== "list") throw new Error(`usage: ${cmd} list`);
+      if (args[1] !== "list") throw new Error(`usage: ${cmd} list [--all]`);
       const client = createClient();
-      printApiData(await client.get(listMap[cmd]!));
+      const { all } = stripAllFlag(args.slice(2));
+      printApiData(await fetchList((query) => client.get(listMap[cmd]!, query), { all }));
       return;
     }
 

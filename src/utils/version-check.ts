@@ -81,3 +81,40 @@ export async function checkForUpdate(
 export function formatUpdateNotice(result: UpdateCheckResult): string {
   return `Update available: v${result.latest} (you have v${result.current}). Run: npm i -g @praxicraft/assess-cli`;
 }
+
+/** Retry once after startup in case the first registry fetch is slow or flaky. */
+export const UPDATE_RETRY_DELAY_MS = 30_000;
+
+/** Poll interval while the TUI stays open (stops once an update is found). */
+export const UPDATE_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * Check npm/GitHub for a newer CLI in the background.
+ * Returns a stop function; polls until an update is found or the TUI exits.
+ */
+export function startBackgroundUpdateCheck(onUpdate: (latest: string) => void): () => void {
+  let stopped = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    if (pollTimer !== undefined) clearInterval(pollTimer);
+  };
+
+  const run = async () => {
+    if (stopped) return;
+    const result = await checkForUpdate();
+    if (stopped || !result) return;
+    onUpdate(result.latest);
+    stop();
+  };
+
+  void run();
+  retryTimer = setTimeout(() => void run(), UPDATE_RETRY_DELAY_MS);
+  pollTimer = setInterval(() => void run(), UPDATE_POLL_INTERVAL_MS);
+
+  return stop;
+}
