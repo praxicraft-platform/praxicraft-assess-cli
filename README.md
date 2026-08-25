@@ -21,10 +21,10 @@ bun add -g @praxicraft/assess-cli
 ### Binary installer
 
 ```bash
-curl -fsSL https://praxicraft.com/install.sh | sh
+curl -fsSL https://praxicraft.com/install.sh | sh && export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Installs the latest release binary (SHA-256 verified) as `praxicraft-assess` to `~/.local/bin` or `/usr/local/bin`.
+Installs the latest release binary (SHA-256 verified) as `praxicraft-assess` to `~/.local/bin` or `/usr/local/bin`. The `export` activates PATH in the **current** terminal (`curl | sh` cannot change your parent shell by itself).
 
 ```bash
 PRAXICRAFT_VERSION=v2.0.2 curl -fsSL https://praxicraft.com/install.sh | sh
