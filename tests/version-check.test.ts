@@ -32,16 +32,45 @@ describe("checkForUpdate", () => {
 
   test("returns latest when registry version is newer", async () => {
     const { checkForUpdate } = await import("../src/utils/version-check");
-    const fetchImpl = async () =>
-      ({
-        ok: true,
-        json: async () => ({ version: "99.0.0" }),
-      }) as Response;
+    const fetchImpl = async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url.toString();
+      if (href.includes("registry.npmjs.org")) {
+        return {
+          ok: true,
+          json: async () => ({ version: "99.0.0" }),
+        } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    };
 
     await expect(checkForUpdate(fetchImpl)).resolves.toEqual({
       current: expect.any(String),
       latest: "99.0.0",
     });
+  });
+
+  test("uses GitHub release when npm is stale", async () => {
+    const { checkForUpdate } = await import("../src/utils/version-check");
+    const fetchImpl = async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url.toString();
+      if (href.includes("registry.npmjs.org")) {
+        return { ok: true, json: async () => ({ version: "2.0.5" }) } as Response;
+      }
+      if (href.includes("api.github.com")) {
+        return { ok: true, json: async () => ({ tag_name: "v2.0.8" }) } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    };
+
+    await expect(checkForUpdate(fetchImpl)).resolves.toEqual({
+      current: expect.any(String),
+      latest: "2.0.8",
+    });
+  });
+
+  test("formatUpdateNotice includes install command", async () => {
+    const { formatUpdateNotice } = await import("../src/utils/version-check");
+    expect(formatUpdateNotice({ current: "2.0.5", latest: "2.0.8" })).toContain("npm i -g");
   });
 
   test("returns null on fetch failure", async () => {
