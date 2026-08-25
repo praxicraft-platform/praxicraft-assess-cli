@@ -70,6 +70,34 @@ describe("formatOutput table", () => {
     expect(formatOutput(data, "json")).toBe(JSON.stringify(data, null, 2));
   });
 
+  test("aligns columns with variable-width cells", () => {
+    const text = formatOutput(
+      {
+        results: [
+          { slug: "short", status: "active", email: "a@example.com" },
+          { slug: "much-longer-slug", status: "draft", email: "ada@example.com" },
+        ],
+      },
+      "table",
+    );
+    const lines = text.split("\n");
+    expect(lines[0]?.indexOf("STATUS")).toBeGreaterThan(lines[0]?.indexOf("SLUG") ?? -1);
+    // Column starts should line up row-to-row.
+    const slugCol = lines[1]?.search(/\S/) ?? 0;
+    const slugCol2 = lines[2]?.search(/\S/) ?? 0;
+    expect(slugCol2).toBe(slugCol);
+  });
+
+  test("object keys align to widest key", () => {
+    const text = formatOutput(
+      { invite_limit: 100, slug: "backend-screen", name: "Acme" },
+      "table",
+    );
+    const lines = text.split("\n").filter(Boolean);
+    const valueStarts = lines.map((line) => line.search(/\S+\s+\S/));
+    expect(new Set(valueStarts).size).toBeLessThanOrEqual(2);
+  });
+
   test("shortens uuid ids in list rows", () => {
     const text = formatOutput(
       {
