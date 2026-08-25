@@ -113,8 +113,7 @@ Notes:
 
 Uses `POST /api/v1/public/assistant/chat/` plus MCP tools:
 
-- Docs: `https://docs.praxicraft.com/mcp` (HTTP)
-- Docs index: `https://docs.praxicraft.com/llms.txt`
+- Docs MCP: `https://docs.praxicraft.com/mcp` (HTTP; agent-only — answers link to real docs pages)
 - Assess API tools: `@praxicraft/assess-mcp` (stdio / `npx`)
 
 ## Commands (TUI slash ↔ CLI)
