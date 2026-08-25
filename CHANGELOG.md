@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.6
+
+- Ask AI: plain TUI prose (strip Markdown), direct docs URLs — never show llms.txt to users
+
 ## 2.0.5
 
 - Fix Ask AI stalling on “I’ll fetch docs…” (nudge + answer SDK catalog without MCP)

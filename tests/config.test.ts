@@ -115,4 +115,15 @@ describe("Ask AI tool mode", () => {
     expect(looksLikeStall("Please hold on for a moment.")).toBe(true);
     expect(looksLikeStall("Python, Node, Go, and Ruby SDKs are available.")).toBe(false);
   });
+
+  test("stripMarkdownForTui removes md and llms.txt", async () => {
+    const { stripMarkdownForTui } = await import("../src/commands/ai");
+    expect(stripMarkdownForTui("See [CLI docs](https://docs.praxicraft.com/sdks/cli)")).toBe(
+      "See CLI docs (https://docs.praxicraft.com/sdks/cli)",
+    );
+    expect(stripMarkdownForTui("**bold** and `code`")).toBe("bold and code");
+    expect(stripMarkdownForTui("Index: https://docs.praxicraft.com/llms.txt")).toBe(
+      "Index: https://docs.praxicraft.com",
+    );
+  });
 });

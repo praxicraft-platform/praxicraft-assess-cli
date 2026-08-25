@@ -58,6 +58,26 @@ export function looksLikeStall(text: string): boolean {
   );
 }
 
+/** Strip common Markdown so TUI answers read as plain terminal text. */
+export function stripMarkdownForTui(input: string): string {
+  let text = input;
+  // [label](url) → label (url) or just url
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, label: string, url: string) =>
+    label === url || label.startsWith("http") ? url : `${label} (${url})`,
+  );
+  text = text.replace(/<(https?:\/\/[^>\s]+)>/g, "$1");
+  text = text.replace(/^#{1,6}\s+/gm, "");
+  text = text.replace(/\*\*([^*]+)\*\*/g, "$1");
+  text = text.replace(/__([^_]+)__/g, "$1");
+  text = text.replace(/(?<!\w)\*([^*]+)\*(?!\w)/g, "$1");
+  text = text.replace(/(?<!\w)_([^_]+)_(?!\w)/g, "$1");
+  text = text.replace(/`([^`]+)`/g, "$1");
+  text = text.replace(/^\s*[-*+]\s+/gm, "• ");
+  // Agent-only index — never show to users
+  text = text.replace(/https?:\/\/docs\.praxicraft\.com\/llms\.txt\S*/gi, "https://docs.praxicraft.com");
+  return text.trim();
+}
+
 /** Skip slow MCP for product/overview questions; load tools only when useful. */
 export function selectToolMode(query: string): ToolMode {
   const q = query.trim().toLowerCase();
@@ -312,10 +332,11 @@ export async function handleAI(query: string, ctx: CommandContext) {
     }
 
     const openaiTools = toolsToOpenAI(tools);
+    // Do not append llms.txt here — that index is agent-only and models echo it to users.
     const messages: Array<Record<string, unknown>> = [
       {
         role: "user",
-        content: `${query.trim()}\n\nDocs index (fetch if needed): https://docs.praxicraft.com/llms.txt`,
+        content: query.trim(),
       },
     ];
 
@@ -410,7 +431,7 @@ export async function handleAI(query: string, ctx: CommandContext) {
     }
 
     if (finalText) {
-      ctx.addBlock({ type: "markdown", text: finalText });
+      ctx.addBlock({ type: "text", text: stripMarkdownForTui(finalText) });
     } else {
       ctx.addBlock({
         type: "error",
