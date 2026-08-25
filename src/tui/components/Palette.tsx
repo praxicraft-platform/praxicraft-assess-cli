@@ -77,14 +77,14 @@ export const Palette = (props: PaletteProps) => {
         left={left()}
         width={PALETTE_WIDTH}
         borderStyle="single"
-        borderColor={colors.accentSky}
+        borderColor={colors.brandLime}
         backgroundColor={colors.surfaceDeep}
         paddingLeft={1}
         paddingRight={1}
         flexDirection="column"
       >
         <box flexDirection="row">
-          <text fg={colors.accentSky}>{`${glyphs.bullet} command palette `}</text>
+          <text fg={colors.brandLime}>{`${glyphs.bullet} command palette `}</text>
           <text fg={colors.textDim}>
             {ranked().length === 0
               ? "no matches"
@@ -101,7 +101,7 @@ export const Palette = (props: PaletteProps) => {
             return (
               <box flexDirection="row">
                 <text
-                  fg={isSelected() ? colors.accentLime : colors.textPrimary}
+                  fg={isSelected() ? colors.brand : colors.textPrimary}
                   attributes={isSelected() ? 1 : 0}
                 >
                   {`${isSelected() ? `${glyphs.prompt} ` : "  "}${row.command}`}

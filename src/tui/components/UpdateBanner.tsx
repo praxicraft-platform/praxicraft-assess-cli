@@ -14,21 +14,20 @@ export const UpdateBanner = (props: Props) => (
         flexDirection="row"
         marginLeft={2}
         marginRight={2}
-        marginTop={1}
         marginBottom={1}
         paddingLeft={1}
         paddingRight={1}
         borderStyle="rounded"
-        borderColor={colors.warning}
+        borderColor={colors.brandLime}
         backgroundColor={colors.brandBlack}
       >
-        <text fg={colors.warning}>{`${glyphs.arrow} `}</text>
+        <text fg={colors.brandLime}>{`${glyphs.arrow} `}</text>
         <text fg={colors.textPrimary}>
           {`Update available: v${latest()} (you have v${currentVersion}). Run `}
         </text>
-        <text fg={colors.accentSky}>npm i -g @praxicraft/assess-cli</text>
+        <text fg={colors.brand}>npm i -g @praxicraft/assess-cli</text>
         <text fg={colors.textDim}>{` ${glyphs.separator} or `}</text>
-        <text fg={colors.accentSky}>curl -fsSL https://praxicraft.com/install.sh | sh</text>
+        <text fg={colors.brand}>curl -fsSL https://praxicraft.com/install.sh | sh</text>
       </box>
     )}
   </Show>

@@ -11,7 +11,7 @@ export const Spinner = (props: { label: string }) => {
   });
   return (
     <box flexDirection="row">
-      <text fg={colors.accentAmber}>{FRAMES[frame()] ?? FRAMES[0]}</text>
+      <text fg={colors.brandLime}>{FRAMES[frame()] ?? FRAMES[0]}</text>
       <text fg={colors.textMuted}>{` ${props.label}`}</text>
     </box>
   );

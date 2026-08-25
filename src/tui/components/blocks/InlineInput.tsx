@@ -20,12 +20,12 @@ export const InlineInput = (props: InlineInputProps) => {
   return (
     <box
       borderStyle="rounded"
-      borderColor={colors.accentMagenta}
+      borderColor={colors.brand}
       paddingLeft={1}
       paddingRight={1}
       flexDirection="column"
     >
-      <text fg={colors.accentMagenta}>{props.label}</text>
+      <text fg={colors.brand}>{props.label}</text>
       <input
         focused
         value={value()}

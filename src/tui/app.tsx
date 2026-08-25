@@ -57,7 +57,10 @@ const App = () => {
   onMount(() => {
     refreshAuthInfo();
     void checkForUpdate().then((result) => {
-      if (result) setUpdateAvailable(result.latest);
+      if (result) {
+        setUpdateAvailable(result.latest);
+        showToast(`Update available: v${result.latest}`, { variant: "info", durationMs: 10_000 });
+      }
     });
   });
 
@@ -197,7 +200,6 @@ const App = () => {
       }}
     >
       <box flexDirection="column" width="100%" height="100%">
-        <UpdateBanner latestVersion={updateAvailable()} />
         <Show when={hasMessages()} fallback={<Welcome />}>
           <scrollbox
             flexGrow={1}
@@ -210,6 +212,7 @@ const App = () => {
           </scrollbox>
         </Show>
         <box flexShrink={0} flexDirection="column" paddingLeft={2} paddingRight={2}>
+          <UpdateBanner latestVersion={updateAvailable()} />
           <InputBar onSubmit={onSubmit} onInput={onInputChange} value={input()} />
           <HintRow />
         </box>

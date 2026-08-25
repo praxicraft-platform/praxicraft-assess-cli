@@ -1,10 +1,14 @@
 /**
- * Design tokens for the Assess TUI. Sole source of truth for brand colors and glyphs.
+ * Praxicraft Assess TUI design tokens.
+ * Palette: brand blues + neutral text. Semantic red/green reserved for errors/success only.
  */
 
 export const colors = {
+  /** Primary brand blue */
   brand: "#0D41FF",
+  /** Lighter brand blue (highlights, links, accents) */
   brandLime: "#5B8AFF",
+  /** Darker brand blue (rules, TEST badge) */
   brandForest: "#0A2FCC",
   brandBlack: "#1F2023",
 
@@ -15,19 +19,15 @@ export const colors = {
   textMuted: "#737470",
   textDim: "#535452",
 
-  success: "#22C55E",
+  /** Errors / destructive only */
   error: "#EF4444",
-  warning: "#F5A623",
-  info: "#38BDF8",
+  /** Success toasts / checkmarks only */
+  success: "#22C55E",
 
-  accentSky: "#38BDF8",
-  accentAmber: "#F5A623",
-  accentMagenta: "#E85BCF",
-  accentCyan: "#7FC4D4",
-  accentLime: "#C6FE1E",
-
-  testMode: "#F5A623",
-  liveMode: "#22C55E",
+  /** LIVE mode — brand highlight */
+  liveMode: "#5B8AFF",
+  /** TEST mode — muted brand */
+  testMode: "#0A2FCC",
 } as const;
 
 export const glyphs = {
