@@ -5,6 +5,11 @@
 #
 # Usage:
 #   curl -fsSL https://praxicraft.com/install.sh | sh
+#   # then in the same terminal (curl|sh cannot change your shell's PATH):
+#   export PATH="$HOME/.local/bin:$PATH"
+#
+# One-liner that also activates PATH in the current shell:
+#   curl -fsSL https://praxicraft.com/install.sh | sh && export PATH="$HOME/.local/bin:$PATH"
 #
 # Environment overrides:
 #   PRAXICRAFT_VERSION       Install a specific release tag (e.g. "v2.0.0"). Defaults to latest.
@@ -228,7 +233,9 @@ ok "Installed ${BOLD}${CMD_NAME}${RESET} to ${BOLD}$TARGET${RESET}"
 
 # ---- PATH -------------------------------------------------------------------
 
-# Prefer the user's login shell ($SHELL). When piped via `curl | sh`, $0 is sh.
+# Prefer the user's login shell ($SHELL). When piped via `curl | sh`, $0 is sh —
+# that child cannot change the parent shell's PATH; we still write the rc file
+# and print an export the user can paste (or chain after `| sh`).
 detect_profile() {
   shell_name=$(basename "${SHELL:-}")
   case "$shell_name" in
@@ -250,46 +257,53 @@ detect_profile() {
   esac
 }
 
-path_line_sh() {
-  # Use $HOME so the line stays portable if the home path changes.
+path_export_cmd() {
   case "$INSTALL_DIR" in
     "$HOME"/*) printf 'export PATH="$HOME/%s:$PATH"' "${INSTALL_DIR#"$HOME"/}" ;;
     *)         printf 'export PATH="%s:$PATH"' "$INSTALL_DIR" ;;
   esac
 }
 
-ensure_path() {
-  case ":$PATH:" in
-    *":$INSTALL_DIR:"*) return 0 ;;
-  esac
+# Snapshot before we mutate PATH in this process.
+PATH_BEFORE="$PATH"
+export PATH="$INSTALL_DIR:$PATH"
 
+NEED_SHELL_HINT=0
+case ":$PATH_BEFORE:" in
+  *":$INSTALL_DIR:"*) ;;
+  *) NEED_SHELL_HINT=1 ;;
+esac
+
+if [ "$NEED_SHELL_HINT" = "1" ]; then
   profile=$(detect_profile)
   mkdir -p "$(dirname "$profile")" 2>/dev/null || true
+  export_cmd=$(path_export_cmd)
 
   if [ "$(basename "$profile")" = "config.fish" ]; then
     case "$INSTALL_DIR" in
       "$HOME"/*) fish_line="fish_add_path \$HOME/${INSTALL_DIR#"$HOME"/}" ;;
       *)         fish_line="fish_add_path $INSTALL_DIR" ;;
     esac
-    if [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; then
-      warn "$INSTALL_DIR is not on PATH in this shell; already configured in $profile — open a new terminal"
-      return 0
+    if ! { [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; }; then
+      printf '\n# Praxicraft Assess CLI\n%s\n' "$fish_line" >> "$profile"
+      ok "Added ${BOLD}$INSTALL_DIR${RESET} to PATH in ${BOLD}$profile${RESET}"
     fi
-    printf '\n# Praxicraft Assess CLI\n%s\n' "$fish_line" >> "$profile"
   else
-    line=$(path_line_sh)
-    if [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; then
-      warn "$INSTALL_DIR is not on PATH in this shell; already configured in $profile — run: source $profile"
-      return 0
+    if ! { [ -f "$profile" ] && grep -F "$INSTALL_DIR" "$profile" >/dev/null 2>&1; }; then
+      printf '\n# Praxicraft Assess CLI\n%s\n' "$export_cmd" >> "$profile"
+      ok "Added ${BOLD}$INSTALL_DIR${RESET} to PATH in ${BOLD}$profile${RESET}"
     fi
-    printf '\n# Praxicraft Assess CLI\n%s\n' "$line" >> "$profile"
   fi
 
-  ok "Added ${BOLD}$INSTALL_DIR${RESET} to PATH in ${BOLD}$profile${RESET}"
-  printf "    Reload with: ${BOLD}source %s${RESET}   (or open a new terminal)\n" "$profile"
-}
-
-ensure_path
+  printf "\n"
+  printf "%s────────────────────────────────────────%s\n" "$BOLD" "$RESET"
+  printf "  %sPATH is updated for new terminals.%s\n" "$DIM" "$RESET"
+  printf "  %sTo use %s in THIS terminal now, run:%s\n" "$BOLD" "$CMD_NAME" "$RESET"
+  printf "\n"
+  printf "    %s%s%s\n" "$GREEN$BOLD" "$export_cmd" "$RESET"
+  printf "\n"
+  printf "%s────────────────────────────────────────%s\n" "$BOLD" "$RESET"
+fi
 
 printf "\n"
 ok "Done. Get started:"
