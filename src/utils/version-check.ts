@@ -1,7 +1,9 @@
 import { version as currentVersion } from "../../package.json";
 
 const NPM_LATEST_URL = "https://registry.npmjs.org/@praxicraft/assess-cli/latest";
-const CHECK_TIMEOUT_MS = 4000;
+const GITHUB_LATEST_URL =
+  "https://api.github.com/repos/praxicraft-platform/praxicraft-assess-cli/releases/latest";
+const CHECK_TIMEOUT_MS = 5000;
 
 export type UpdateCheckResult = {
   current: string;
@@ -27,22 +29,55 @@ export function compareSemver(a: string, b: string): number {
   return 0;
 }
 
-export async function checkForUpdate(
-  fetchImpl: typeof fetch = fetch,
-): Promise<UpdateCheckResult | null> {
+function pickNewestVersion(candidates: string[]): string | null {
+  const trimmed = candidates.map((v) => v.trim()).filter(Boolean);
+  if (trimmed.length === 0) return null;
+  return trimmed.reduce((best, next) => (compareSemver(next, best) > 0 ? next : best));
+}
+
+async function fetchNpmLatest(fetchImpl: typeof fetch): Promise<string | null> {
   try {
     const res = await fetchImpl(NPM_LATEST_URL, {
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return null;
-
     const body = (await res.json()) as { version?: string };
-    const latest = body.version?.trim();
-    if (!latest || compareSemver(latest, currentVersion) <= 0) return null;
-
-    return { current: currentVersion, latest };
+    return body.version?.trim() || null;
   } catch {
     return null;
   }
+}
+
+async function fetchGithubReleaseLatest(fetchImpl: typeof fetch): Promise<string | null> {
+  try {
+    const res = await fetchImpl(GITHUB_LATEST_URL, {
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "praxicraft-assess-cli",
+      },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { tag_name?: string };
+    return body.tag_name?.trim().replace(/^v/i, "") || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function checkForUpdate(
+  fetchImpl: typeof fetch = fetch,
+): Promise<UpdateCheckResult | null> {
+  const [npmLatest, githubLatest] = await Promise.all([
+    fetchNpmLatest(fetchImpl),
+    fetchGithubReleaseLatest(fetchImpl),
+  ]);
+  const latest = pickNewestVersion([npmLatest, githubLatest].filter((v): v is string => !!v));
+  if (!latest || compareSemver(latest, currentVersion) <= 0) return null;
+  return { current: currentVersion, latest };
+}
+
+export function formatUpdateNotice(result: UpdateCheckResult): string {
+  return `Update available: v${result.latest} (you have v${result.current}). Run: npm i -g @praxicraft/assess-cli`;
 }
