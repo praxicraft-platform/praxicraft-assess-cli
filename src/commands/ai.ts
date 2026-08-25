@@ -47,10 +47,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+/** Interim “I’ll fetch…” replies that should not be treated as final answers. */
+export function looksLikeStall(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (!t) return false;
+  return (
+    /please hold|hold on|one moment|let me (fetch|look|check|search)|i('ll| will) (fetch|look|check|search|retrieve)/i.test(
+      t,
+    ) && t.length < 400
+  );
+}
+
 /** Skip slow MCP for product/overview questions; load tools only when useful. */
 export function selectToolMode(query: string): ToolMode {
   const q = query.trim().toLowerCase();
   if (!q) return "none";
+
+  // Catalog / overview questions — answer from model knowledge (fast, no MCP hang).
+  if (
+    /\b(which|what|list of|available)\b.*\b(sdks?|sdk|languages?|cli|mcp|plugin)\b/.test(q) ||
+    /\b(sdks?|sdk|cli|mcp|plugin)\b.*\b(available|supported|exist)\b/.test(q) ||
+    /\bwhat can (u|you)\b/.test(q)
+  ) {
+    return "none";
+  }
 
   const wantsOrg =
     /\b(list|invite|create|delete|update|patch|whoami|billing|stats)\b/.test(q) ||
@@ -300,6 +320,7 @@ export async function handleAI(query: string, ctx: CommandContext) {
     ];
 
     let finalText = "";
+    let stallNudgeUsed = false;
     for (let step = 0; step < MAX_STEPS; step++) {
       ctx.updateBlock(spinnerId, {
         label: step === 0 ? "Analyzing your question…" : `Analyzing… (step ${step + 1})`,
@@ -324,19 +345,33 @@ export async function handleAI(query: string, ctx: CommandContext) {
       }
 
       const msg = result.message || {};
-      if (msg.content) finalText += String(msg.content);
+      const stepText = msg.content ? String(msg.content) : "";
 
       const toolCalls = msg.tool_calls as
         | Array<{ id: string; function: { name: string; arguments: string } }>
         | undefined;
 
       if (result.finish_reason !== "tool_calls" || !toolCalls?.length) {
+        // Model said “I’ll fetch…” and stopped — nudge once for a real answer.
+        if (!stallNudgeUsed && looksLikeStall(stepText)) {
+          stallNudgeUsed = true;
+          messages.push({ role: "assistant", content: stepText });
+          messages.push({
+            role: "user",
+            content:
+              "Do not wait or say you will fetch. Answer now with the concrete list or facts.",
+          });
+          continue;
+        }
+        if (stepText) finalText += stepText;
         break;
       }
 
+      if (stepText) finalText += stepText;
+
       messages.push({
         role: "assistant",
-        content: msg.content || "",
+        content: stepText,
         tool_calls: toolCalls,
       });
 
@@ -354,7 +389,11 @@ export async function handleAI(query: string, ctx: CommandContext) {
           if (!tool?.execute) {
             toolResult = `Tool ${name} not executable`;
           } else {
-            const out = await tool.execute(args);
+            const out = await withTimeout(
+              Promise.resolve(tool.execute(args)),
+              DOCS_MCP_TIMEOUT_MS,
+              `tool ${name}`,
+            );
             toolResult =
               typeof out === "string" ? out : JSON.stringify(out, null, 2);
           }
