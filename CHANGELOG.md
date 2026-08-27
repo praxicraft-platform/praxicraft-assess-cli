@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.11
+
+- feat!: rename CLI resource cases to tasks (v3.0.0)
+- feat: list pagination --all, background update check, changelog sync
+- fix: visible update banner + brand-only colors (#22)
+- fix: version-check test independent of package.json version (#21)
+- fix: align tabular CLI output with proper column padding (#19)
+- fix: auto-release skips existing semver tags (#20)
+- feat: tabular CLI output by default; whoami shows org name only (#18)
+- fix: update banner checks GitHub releases and shows at top (#17)
+- feat: show update banner in TUI when a newer CLI is on npm (#16)
 
 ## 3.0.0
 
