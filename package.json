@@ -1,7 +1,7 @@
 {
   "name": "@praxicraft/assess-cli",
-  "version": "2.0.9",
-  "description": "Official Praxicraft Assess CLI — interactive TUI, Ask AI, and Public API commands.",
+  "version": "3.0.0",
+  "description": "Official Praxicraft Assess CLI \u2014 interactive TUI, Ask AI, and Public API commands.",
   "type": "module",
   "bin": {
     "praxicraft-assess": "./dist/index.js"

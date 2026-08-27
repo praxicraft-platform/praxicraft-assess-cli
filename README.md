@@ -76,7 +76,7 @@ praxicraft-assess assessments get my-assessment
 praxicraft-assess invites list
 praxicraft-assess invites create my-assessment candidate@acme.com "Ada Lovelace"
 praxicraft-assess results list my-assessment
-praxicraft-assess cases list
+praxicraft-assess tasks list
 praxicraft-assess pipelines list
 praxicraft-assess webhooks list
 praxicraft-assess interviews list
@@ -127,7 +127,7 @@ Uses `POST /api/v1/public/assistant/chat/` plus MCP tools:
 | `/assessments list\|get` | `praxicraft-assess assessments …` |
 | `/invites …` | `praxicraft-assess invites …` |
 | `/results list` | `praxicraft-assess results list <slug>` |
-| `/cases` … `/integrations` | `praxicraft-assess <resource> list` |
+| `/tasks` … `/integrations` | `praxicraft-assess <resource> list` |
 | free text / `/ai …` | (interactive only) |
 
 ## Contributing

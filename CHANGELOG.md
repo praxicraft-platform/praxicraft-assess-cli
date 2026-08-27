@@ -1,5 +1,12 @@
 # Changelog
 
+
+## 3.0.0
+
+### Breaking
+
+- Rename CLI resource from cases to tasks; Public API paths use /tasks/.
+
 ## Unreleased
 
 - feat: `--all` on list commands follows cursor pagination and merges rows into one table
