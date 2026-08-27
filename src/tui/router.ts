@@ -25,7 +25,7 @@ const API_ROOTS = new Set([
   "/assessments",
   "/invites",
   "/results",
-  "/cases",
+  "/tasks",
   "/pipelines",
   "/webhooks",
   "/interviews",
@@ -230,8 +230,8 @@ export async function handleCommand(
       return;
     }
 
-    if (cmd === "/cases" && subCmd === "list") {
-      const data = await fetchListPath(client, "/cases/", extraArgs);
+    if (cmd === "/tasks" && subCmd === "list") {
+      const data = await fetchListPath(client, "/tasks/", extraArgs);
       showApiResult(ctx, data);
       return;
     }

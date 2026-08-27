@@ -44,7 +44,7 @@ Usage:
   praxicraft-assess assessments list|get <slug>
   praxicraft-assess invites list|create <slug> <email> <name>
   praxicraft-assess results list <slug>
-  praxicraft-assess cases|pipelines|webhooks|interviews|integrations list [--all]
+  praxicraft-assess tasks|pipelines|webhooks|interviews|integrations list [--all]
 
 Output: table in terminal (default), JSON when piped. Override with --output json|table
 List commands: pass --all to follow cursor pagination and merge every page into one table
@@ -208,7 +208,7 @@ async function runCli(): Promise<void> {
     }
 
     const listMap: Record<string, string> = {
-      cases: "/cases/",
+      tasks: "/tasks/",
       pipelines: "/pipelines/",
       webhooks: "/webhooks/",
       interviews: "/interviews/",

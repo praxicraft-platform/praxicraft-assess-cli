@@ -15,7 +15,7 @@ export const COMMANDS: CommandDef[] = [
   { command: "/invites list", description: "List invitations" },
   { command: "/invites create", description: "Create an invitation" },
   { command: "/results list", description: "List results for an assessment" },
-  { command: "/cases list", description: "List org cases" },
+  { command: "/tasks list", description: "List org tasks" },
   { command: "/pipelines list", description: "List pipelines" },
   { command: "/webhooks list", description: "List webhooks" },
   { command: "/interviews list", description: "List interviews" },
